@@ -178,7 +178,7 @@ test('cards, intents and framed messages keep one blank row above them', async (
     return <Text>{e.props.text}</Text>
   })
   const plain = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', props: { text: 'Done.', isFirstOfReply: true } })
-  expect(await plain.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'round', marginTop: 1 } })
+  expect(await plain.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'bold', marginTop: 1 } })
   expect((await plain.findAll({ type: 'Markdown' })).map(m => m.props.text)).toEqual(['Done.'])
   expect((await plain.findAll({ type: 'Text' })).map(t => t.text)).toContain('⏺ ')
   await plain.unmount()
@@ -212,7 +212,7 @@ test('a folded card is one line; unfolded output hangs on a rail; prompts get a 
   expect(text).toContain('└─ ')
   await grep.unmount()
   const prompt = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'UserMessage', props: { text: 'hello', origin: { kind: 'composer' }, isExpanded: false } })
-  expect(await prompt.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'round' } })
+  expect(await prompt.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'bold' } })
   expect((await prompt.findAll({ type: 'Text' })).map(t => t.text).join('')).toContain('❯ hello')
   await prompt.unmount()
 })

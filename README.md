@@ -3,16 +3,16 @@
 Four small mods that make Claude Code's terminal easier to read, in the look and dark palette of [oh-my-pi](https://github.com/can1357/oh-my-pi).
 
 ```
-╭──────────────────────────────────────────────────────────────╮
-│ ❯ fix the login test                                2:40 AM ✓ │
-╰──────────────────────────────────────────────────────────────╯
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ ❯ fix the login test                                2:40 AM ✓ ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 » Reading the test file
 ● Read: tests/login.test.ts  48 lines
 » Fixing the assertion
 ✎ Edit: tests/login.test.ts ⟦+1/-1⟧
-╭──────────────────────────────────────────────────────────────╮
-│ ⏺ Fixed: the test expected the old redirect path.     2:41 AM │
-╰──────────────────────────────────────────────────────────────╯
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ ⏺ Fixed: the test expected the old redirect path.     2:41 AM ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
   ⟦☰⟧ ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━ 57% 570k ────── 1M ─ › 5h 40% · 7d 12% ⟦◨⟧ ⟦⊟⟧
 ```

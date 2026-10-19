@@ -86,13 +86,13 @@ const stampOf = async ($: EngineInterface, e: { requestId: string }) => {
   return own || past.get(e.requestId) || 0
 }
 
-// A message in a rounded frame, its time at the right of the first line, then anything `aside`.
+// A message in a heavy frame, its time at the right of the first line, then anything `aside`.
 const messageOf = async ($: EngineInterface, els: Els, e: { requestId: string }, color: string, body: RenderChildren, aside?: RenderChildren) => {
   const { Box, Text } = els
   const stamp = await stampOf($, e)
   const time = stamp ? timeOf(stamp, await $.clock.now()) : ''
   return (
-    <Box borderStyle="round" borderColor={color} paddingX={1} marginTop={GAP}>
+    <Box borderStyle="bold" borderColor={color} paddingX={1} marginTop={GAP}>
       <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0}>
         {body}
       </Box>
