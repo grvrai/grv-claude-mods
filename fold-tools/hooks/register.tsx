@@ -3,7 +3,7 @@ import type { ElementTable, EngineInterface, Register, RenderChildren, Timer } f
 
 import { cardOf, diffRows, groupSummary } from './cards'
 import type { Body, Card, DiffRow } from './cards'
-import { C, CLOCK, FRAME, G, iconOf, SPINNER, toneOf } from './style'
+import { C, CLOCK, FRAME, G, iconOf, SPINNER, timeOf, toneOf } from './style'
 import type { Status, Tone } from './style'
 
 // Left to the engine (turn-questions draws AskUserQuestion; Agent rows stream progress).
@@ -15,6 +15,8 @@ const CAPS: Record<Body['kind'], number> = { diff: 40, code: 12, shell: 10, text
 const FULL = 400
 // The spinner's frame length.
 const FRAME_MS = 120
+// How much of a transcript too big for one read the backfill takes from its end.
+const TAIL_BYTES = 4_000_000
 const INTENT_LINE = /^\s*»\s+(.+?)\s*$/
 // One blank row above each card, as the engine gives the tool rows it draws itself.
 const GAP = 1
@@ -32,8 +34,10 @@ const mode = atom({ plugin: 'fold-tools', key: 'mode' } as const, { gen: 0, isOp
 const rows = atom({ plugin: 'fold-tools', key: 'rows' } as const, { gen: -1, isOpen: false })
 const queued = atom({ plugin: 'fold-tools', key: 'queued' } as const, [])
 const tick = atom({ plugin: 'fold-tools', key: 'tick' } as const, 0)
+const stamps = atom({ plugin: 'fold-tools', key: 'stamps' } as const, 0)
+const history = atom({ plugin: 'fold-tools', key: 'history' } as const, 0)
 
-type Els = Pick<ElementTable, 'Box' | 'Text' | 'Code' | 'Button'>
+type Els = Pick<ElementTable, 'Box' | 'Text' | 'Code' | 'Button' | 'Markdown'>
 type Fold = Awaited<ReturnType<typeof foldOf>>
 type Row = { node: RenderChildren; height: number }
 type Section = { rows: Row[] } | { divider: string }
@@ -46,6 +50,8 @@ let home = ''
 // Tool calls in flight; the ticker runs only while one is, or while a prompt waits.
 let active = 0
 let ticker: Timer | undefined
+// Rows stored before this load, by uuid, at the times the transcript file keeps.
+const past = new Map<string, number>()
 
 const animate = async ($: EngineInterface) => {
   const isLive = active > 0 || (await read($, queued)).length > 0
@@ -54,6 +60,48 @@ const animate = async ($: EngineInterface) => {
     ticker.cancel()
     ticker = undefined
   }
+}
+
+// Reads the transcript file's row times into `past`, its tail when the file is too big for one read.
+const backfill = async ($: EngineInterface) => {
+  const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${home}/.claude`
+  const path = `${dir}/projects/${cwd.replace(/[^a-zA-Z0-9]/g, '-')}/${await $.session.id()}.jsonl`
+  const text = await $.fs
+    .read(path)
+    .catch(async () => (await $.process.run(['tail', '-c', String(TAIL_BYTES), path])).stdout)
+    .catch(() => '')
+  for (const line of text.split('\n')) {
+    if (!line.includes('"timestamp"')) continue
+    try {
+      const row = JSON.parse(line) as { type?: string; uuid?: string; timestamp?: string }
+      if ((row.type === 'user' || row.type === 'assistant') && row.uuid && row.timestamp) past.set(row.uuid, Date.parse(row.timestamp))
+    } catch {}
+  }
+  await update($, history, n => n + 1)
+}
+
+// When a message row was stored, stamped live or read back from the transcript; 0 until it is stored.
+const stampOf = async ($: EngineInterface, e: { requestId: string }) => {
+  const [own] = await Promise.all([read($, memberOf(stamps, e)), read($, history)])
+  return own || past.get(e.requestId) || 0
+}
+
+// A message in a rounded frame, its time at the right of the first line, then anything `aside`.
+const messageOf = async ($: EngineInterface, els: Els, e: { requestId: string }, color: string, body: RenderChildren, aside?: RenderChildren) => {
+  const { Box, Text } = els
+  const stamp = await stampOf($, e)
+  const time = stamp ? timeOf(stamp, await $.clock.now()) : ''
+  return (
+    <Box borderStyle="round" borderColor={color} paddingX={1} marginTop={GAP}>
+      <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0}>
+        {body}
+      </Box>
+      <Box flexShrink={0}>
+        {time && <Text color={C.dim}>  {time}</Text>}
+        {aside}
+      </Box>
+    </Box>
+  )
 }
 
 // A row follows the last /fold (or `fallback`) until it is clicked under that same /fold.
@@ -298,6 +346,17 @@ export const register: Register = on => {
       description: 'Open or close every tool card',
       argumentHint: '[open|close]',
     })
+    const started = await next(e)
+    void backfill($)
+    return started
+  })
+
+  // Stamps each prompt and reply row as it is stored, under the id its transcript row is drawn by.
+  on('session.append', async ($, e, next) => {
+    if (!e.agentId && (e.door === 'prompt' || e.door === 'response')) {
+      const now = await $.clock.now()
+      await update($, memberOf(stamps, { requestId: e.uuid }), () => now)
+    }
     return next(e)
   })
 
@@ -315,12 +374,26 @@ export const register: Register = on => {
     return { sections: [...sections.filter(s => s.id !== INTENT.id), INTENT] }
   })
 
+  // Claude's text in a dim frame with its time, drawn as a reply is (an engine node may not sit in a sized Box); » lines come out of it as the intent headings of the calls below.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
+    if (e.props.isSummary) return next(e)
     const lines = e.props.text.split('\n')
-    const intents = e.props.isSummary ? [] : lines.flatMap(line => INTENT_LINE.exec(line)?.[1] ?? [])
-    if (!intents.length) return next(e)
-    const { Box, Text } = $.ui.resolve(e)
+    const intents = lines.flatMap(line => INTENT_LINE.exec(line)?.[1] ?? [])
+    const els = $.ui.resolve(e)
+    const { Box, Markdown, Text } = els
     const rest = lines.filter(line => !INTENT_LINE.test(line)).join('\n').trim()
+    const body = (
+      <Box>
+        <Box flexShrink={0}>
+          <Text>{e.props.isFirstOfReply ? '⏺ ' : '  '}</Text>
+        </Box>
+        <Box flexGrow={1} flexShrink={1} width={0}>
+          <Markdown text={rest} />
+        </Box>
+      </Box>
+    )
+    const framed = rest ? await messageOf($, els, e, C.dim, body) : undefined
+    if (!intents.length) return framed ?? next(e)
     const heads = (
       <Box flexDirection="column" marginTop={GAP}>
         {intents.map(text => (
@@ -331,11 +404,10 @@ export const register: Register = on => {
         ))}
       </Box>
     )
-    if (!rest) return heads
-    const engine = await next({ ...e, props: { ...e.props, text: rest } })
+    if (!framed) return heads
     return (
       <Box flexDirection="column">
-        {engine}
+        {framed}
         {heads}
       </Box>
     )
@@ -382,13 +454,14 @@ export const register: Register = on => {
     }
   })
 
-  // The person's own prompts as one unframed line, as the tool calls are: a blue prompt icon, the text, its submission status.
+  // The person's own prompts in a blue frame: a prompt icon, the text, its time and submission status.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.props.origin.kind !== 'composer') return next(e)
-    const { Box, Text } = $.ui.resolve(e)
+    const els = $.ui.resolve(e)
+    const { Box, Text } = els
     const isQueued = (await read($, queued)).some(q => q.text === e.props.text)
     const frame = isQueued ? await read($, tick) : 0
-    return (
+    const body = (
       <Box>
         <Box flexShrink={0}>
           <Text bold color={C.user}>
@@ -398,11 +471,10 @@ export const register: Register = on => {
         <Box flexGrow={1} flexShrink={1}>
           <Text>{e.props.text}</Text>
         </Box>
-        <Box flexShrink={0}>
-          <Text color={isQueued ? C.warning : C.success}>  {isQueued ? CLOCK[frame % CLOCK.length] : '✓'}</Text>
-        </Box>
       </Box>
     )
+    const status = <Text color={isQueued ? C.warning : C.success}>  {isQueued ? CLOCK[frame % CLOCK.length] : '✓'}</Text>
+    return messageOf($, els, e, C.user, body, status)
   })
 
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {

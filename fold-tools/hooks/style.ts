@@ -9,11 +9,18 @@ export const C = {
   user: '#178fb9',
 }
 
-// oh-my-pi's braille spinner, and a clock for a prompt waiting its turn.
-export const SPINNER = '⣾⣽⣻⢿⡿⣟⣯⣷'
+// A 2x2 braille spinner, its gap going round clockwise, and a clock for a prompt waiting its turn.
+export const SPINNER = '⠴⠦⠖⠲'
 export const CLOCK = '◴◷◶◵'
 
 export const G = { success: '✔', error: '✘', pending: '⏳', aborted: '⏹', bullet: '•', branch: '├─', last: '└─' }
+
+// The terminal's own time format (`2:34 AM`), with the date once the day has passed.
+export const timeOf = (ms: number, now: number) => {
+  const at = new Date(ms)
+  const time = at.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return at.toDateString() === new Date(now).toDateString() ? time : `${at.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`
+}
 
 export type Status = { isRunning: boolean; isErrored: boolean; isInterrupted: boolean }
 export type Tone = 'pending' | 'success' | 'error'

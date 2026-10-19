@@ -11,11 +11,11 @@ export const C = {
   dim: '#5f6673',
 }
 
-export const SPINNER = '⣾⣽⣻⢿⡿⣟⣯⣷'
+export const SPINNER = '⠴⠦⠖⠲'
 
 export const MARKS: Record<AgentStatus | 'in_progress', Mark> = {
   pending: { glyph: '○', color: C.dim },
-  running: { glyph: '⣾', color: C.accent },
+  running: { glyph: '⠴', color: C.accent },
   in_progress: { glyph: '●', color: C.accent },
   waiting: { glyph: '⏳', color: C.muted },
   idle: { glyph: '○', color: C.dim },

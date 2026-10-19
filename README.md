@@ -32,9 +32,10 @@ Click a call's icon and name to unfold it; its output hangs beneath on a rail:
 ```
 
 - An unfolded call shows up to 10 lines of shell output (its tail), 40 diff lines or 12 lines of code or text; `⟦show all⟧` lifts the cap and `⟦collapse⟧` folds it back. `/fold open|close` opens or closes every call.
-- A running call's icon is oh-my-pi's braille spinner; the rail is dim when a call succeeded, amber while it runs and red when it failed. Tool names are oh-my-pi's amber.
+- A running call's icon is a 2x2 braille spinner (`⠴⠦⠖⠲`); the rail is dim when a call succeeded, amber while it runs and red when it failed. Tool names are oh-my-pi's amber.
 - Diffs use oh-my-pi's gutter (`-113│`), whole-line color and inverted changed words. Grep and Glob hang matches on `├─`/`└─` branches; a group of several calls is a line with a branch per call, each unfolding under it.
-- Your own prompts are one unframed line, spaced as the tool calls are: a blue `❯` icon, the text and its submission status at the right edge: an animated `◴◷◶◵` clock while the prompt is queued behind a running turn, then `✓` once the engine hands it to Claude (at its next request, mid-turn included). A prompt pushed in early with ctrl+x ctrl+s reads queued until that request.
+- Messages are framed, with the time each was sent at the right of its first line (`2:40 AM`, the date too once it is not today's): Claude's replies in a dim frame under the `⏺` bullet, your own prompts in a blue one with a `❯` icon and, after the time, their submission status: an animated `◴◷◶◵` clock while the prompt is queued behind a running turn, then `✓` once the engine hands it to Claude (at its next request, mid-turn included). A prompt pushed in early with ctrl+x ctrl+s reads queued until that request.
+- The times are stamped as each row is stored; for rows from before (a resumed session, or after `/reload-plugins`) they are read from the session's transcript file, its last 4 MB when the file is bigger.
 - Adds one system-prompt section asking Claude to write `» <intent>` (a 2–6-word present-participle phrase) before each tool call; that line is drawn as a bold heading above the calls.
 - Spacing: one blank row above every call, group and intent, as Claude Code spaces the rows it draws itself.
 - Left to Claude Code's own drawing: `AskUserQuestion` (see turn-questions) and `Agent` rows.
@@ -74,10 +75,10 @@ oh-my-pi's bar in the row under the prompt, across the full width of the window:
 ❯ _
 ───────────────────────────────────────────────────────────────────────────────────
   ⏵⏵ bypass permissions on (shift+tab to cycle)
-  ⟦☰⟧ ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━━━━━ 57% ────── 1M ─ › 5h 40% · 7d 12% ⟦◨⟧ ⟦⊟⟧
+  ⟦☰⟧ ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━━━━━ 57% 570k ────── 1M ─ › 5h 40% · 7d 12% ⟦◨⟧ ⟦⊟⟧
 ```
 
-- The rule fills whatever width the window has and follows it as the window resizes; its lit share is the context used, its percent set right after it, the window size at the end. It turns yellow, purple and red at oh-my-pi's thresholds (50/70/90%, or 150k/270k/500k tokens, whichever comes first); the rate-limit windows color the same way.
+- The rule fills whatever width the window has and follows it as the window resizes; its lit share is the context used, its percent and token count set right after it, the window size at the end. It turns yellow, purple and red at oh-my-pi's thresholds (50/70/90%, or 150k/270k/500k tokens, whichever comes first); the rate-limit windows color the same way.
 - `⟦☰⟧` runs `/background`: the session keeps running and the terminal shows the agents list, as `←` at an empty prompt does.
 - `⟦◨⟧` shows or hides the session sidebar, as `/sidebar` does (needs session-sidebar).
 - `⟦⊟⟧` compacts the conversation, as `/compact` does; it rests while Claude is working.

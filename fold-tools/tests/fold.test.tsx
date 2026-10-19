@@ -2,6 +2,7 @@ import type { PromptComposeInput } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import { cardOf, diffRows, groupSummary } from '../hooks/cards'
+import { timeOf } from '../hooks/style'
 
 const PATCH = [{ oldStart: 3, oldLines: 2, newStart: 3, newLines: 3, lines: [' keep', '-old value', '+new value', '+more'] }]
 const RUN = { origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 100 } } as const
@@ -120,7 +121,7 @@ test('a group of one call draws that call as its own card', async $ => {
   await ui.unmount()
 })
 
-test('a » line is drawn as the intent heading and the rest is left to the engine', async ($, on) => {
+test('a » line is drawn as the intent heading and the rest as the framed reply', async ($, on) => {
   const seen: string[] = []
   on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
     seen.push(e.props.text)
@@ -133,7 +134,8 @@ test('a » line is drawn as the intent heading and the rest is left to the engin
     component: 'AssistantMessage',
     props: { text: 'Found it.\n» Reading model role settings', isFirstOfReply: true },
   })
-  expect(seen).toEqual(['Found it.'])
+  expect(seen).toEqual([])
+  expect((await ui.findAll({ type: 'Markdown' })).map(m => m.props.text)).toEqual(['Found it.'])
   const heads = await ui.findAll({ type: 'Text', text: 'Reading model role settings' })
   expect(heads.some(t => t.props.bold === true)).toBe(true)
   await ui.unmount()
@@ -166,13 +168,15 @@ test('cards and diff rows summarise each tool', () => {
   expect(groupSummary([{ tool: 'Read' }, { tool: 'Read' }, { tool: 'Grep' }])).toBe('Read 2 files · searched 1 pattern')
 })
 
-test('cards and intents keep one blank row above them; messages keep the engine spacing', async ($, on) => {
+test('cards, intents and framed messages keep one blank row above them', async ($, on) => {
   on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>{e.props.text}</Text>
   })
   const plain = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', props: { text: 'Done.', isFirstOfReply: true } })
-  expect(await plain.drawn()).toMatchObject({ type: 'Text' })
+  expect(await plain.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'round', marginTop: 1 } })
+  expect((await plain.findAll({ type: 'Markdown' })).map(m => m.props.text)).toEqual(['Done.'])
+  expect((await plain.findAll({ type: 'Text' })).map(t => t.text)).toContain('⏺ ')
   await plain.unmount()
   const intent = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', props: { text: '» Reading notes', isFirstOfReply: false } })
   expect(await intent.drawn()).toMatchObject({ type: 'Box', props: { marginTop: 1 } })
@@ -182,7 +186,7 @@ test('cards and intents keep one blank row above them; messages keep the engine 
   await card.unmount()
 })
 
-test('a folded card is one line; unfolded output hangs on a rail; prompts are one unframed line', async $ => {
+test('a folded card is one line; unfolded output hangs on a rail; prompts get a frame of their own', async $ => {
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...bash('t10') })
   let text = await textOf(ui)
   expect(text).not.toContain('╭')
@@ -204,9 +208,7 @@ test('a folded card is one line; unfolded output hangs on a rail; prompts are on
   expect(text).toContain('└─ ')
   await grep.unmount()
   const prompt = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'UserMessage', props: { text: 'hello', origin: { kind: 'composer' }, isExpanded: false } })
-  const drawn = await prompt.drawn()
-  expect(drawn).toMatchObject({ type: 'Box' })
-  expect(JSON.stringify(drawn)).not.toContain('borderStyle')
+  expect(await prompt.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'round' } })
   expect((await prompt.findAll({ type: 'Text' })).map(t => t.text).join('')).toContain('❯ hello')
   await prompt.unmount()
 })
@@ -245,7 +247,7 @@ test('a running card spins while the call is in flight', async ($, on) => {
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...running })
   const glyph = async () => (await ui.find({ key: 'fold-t12' }))?.text.charAt(0)
   const first = await glyph()
-  expect('⣾⣽⣻⢿⡿⣟⣯⣷').toContain(first ?? '?')
+  expect('⠴⠦⠖⠲').toContain(first ?? '?')
   await clock.advance(240)
   await clock.settle()
   await ui.redraw()
@@ -253,4 +255,66 @@ test('a running card spins while the call is in flight', async ($, on) => {
   finish()
   await call
   await ui.unmount()
+})
+
+test('prompts and replies show the time their row was stored, read back from the transcript file', async ($, on) => {
+  const now = Date.parse('2026-10-20T09:00:00Z')
+  const clock = mock.clock(on, { now })
+  const rows = [
+    { type: 'user', uuid: 'u1', timestamp: '2026-10-20T08:30:00.000Z' },
+    { type: 'assistant', uuid: 'a1', timestamp: '2026-10-20T08:31:00.000Z' },
+    { type: 'attachment', uuid: 'x1', timestamp: '2026-10-20T08:32:00.000Z' },
+  ]
+  const paths: string[] = []
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('session.cwd', () => ({ value: '/repo/my.app' }))
+  on('session.id', () => ({ value: 's1' }))
+  on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
+  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('fs.read', ($, e) => {
+    paths.push(e.path)
+    return { value: rows.map(r => JSON.stringify(r)).join('\n') }
+  })
+  on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>{e.props.text}</Text>
+  })
+  await $.session.start({ cwd: '/repo/my.app', surface: 'terminal', isInteractive: true })
+  await clock.settle()
+  expect(paths).toEqual(['/home/me/.claude/projects/-repo-my-app/s1.jsonl'])
+  const prompt = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'UserMessage', requestId: 'u1', props: { text: 'hello', origin: { kind: 'composer' }, isExpanded: false } })
+  const promptText = (await prompt.findAll({ type: 'Text' })).map(t => t.text).join('')
+  expect(promptText).toContain(timeOf(Date.parse('2026-10-20T08:30:00.000Z'), now))
+  expect(promptText.indexOf('✓')).toBeGreaterThan(promptText.indexOf(timeOf(Date.parse('2026-10-20T08:30:00.000Z'), now)))
+  await prompt.unmount()
+  const reply = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', requestId: 'a1', props: { text: 'Done.', isFirstOfReply: true } })
+  expect((await reply.findAll({ type: 'Text' })).map(t => t.text).join('')).toContain(timeOf(Date.parse('2026-10-20T08:31:00.000Z'), now))
+  await reply.unmount()
+  const fresh = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', requestId: 'a9', props: { text: 'Later.', isFirstOfReply: true } })
+  expect((await fresh.findAll({ type: 'Text' })).map(t => t.text).join('')).not.toMatch(/\d:\d\d/)
+  await fresh.unmount()
+  expect(timeOf(Date.parse('2026-10-18T08:30:00Z'), now)).toMatch(/^Oct 1[78] /)
+})
+
+test('a transcript too big for one read is backfilled from its tail', async ($, on) => {
+  const clock = mock.clock(on, { now: Date.parse('2026-10-20T09:00:00Z') })
+  const ran: (readonly string[])[] = []
+  on('session.start', ($, e) => ({ cwd: e.cwd }))
+  on('session.cwd', () => ({ value: '/repo' }))
+  on('session.id', () => ({ value: 's2' }))
+  on('env.get', ($, e) => ({ value: e.name === 'CLAUDE_CONFIG_DIR' ? '/cfg' : undefined }))
+  on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('fs.read', () => {
+    throw new Error('over 4 MiB')
+  })
+  on('process.run', ($, e) => {
+    ran.push(e.argv)
+    return { value: { exitCode: 0, stdout: `partial line\n${JSON.stringify({ type: 'user', uuid: 'u2', timestamp: '2026-10-20T08:45:00.000Z' })}`, stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
+  })
+  await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
+  await clock.settle()
+  expect(ran).toEqual([['tail', '-c', '4000000', '/cfg/projects/-repo/s2.jsonl']])
+  const prompt = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'UserMessage', requestId: 'u2', props: { text: 'hi', origin: { kind: 'composer' }, isExpanded: false } })
+  expect((await prompt.findAll({ type: 'Text' })).map(t => t.text).join('')).toContain(timeOf(Date.parse('2026-10-20T08:45:00.000Z'), Date.parse('2026-10-20T09:00:00Z')))
+  await prompt.unmount()
 })

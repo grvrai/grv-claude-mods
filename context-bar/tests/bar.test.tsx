@@ -15,7 +15,7 @@ const textOf = (runs: { text: string }[]) => runs.map(r => r.text).join('')
 test('the bar splits into model and effort, a gauge sized by the fill, and the window and rate limits', () => {
   const parts = partsOf(INPUT)
   expect(textOf(parts.head)).toBe('⬢ Opus 5.5 · ◕ xhigh › ◫ ')
-  expect(parts.gauge).toEqual({ used: 38, color: C.purple, label: { text: ' 38% ', color: C.purple } })
+  expect(parts.gauge).toEqual({ used: 38, color: C.purple, label: [{ text: ' 38%', color: C.purple }, { text: ' 380k ', color: C.context }] })
   expect(textOf(parts.tail)).toBe(' 1M ─ › 5h 55% · 7d 20%')
 })
 
@@ -23,7 +23,9 @@ test('fast mode, a missing window and a missing effort read sensibly', () => {
   const parts = partsOf({ model: { id: 'claude-haiku-5-5' }, fast_mode: true })
   expect(textOf(parts.head)).toBe('⬢ Haiku 5.5 ⚡ › ◫ ')
   expect(parts.gauge).toBeUndefined()
-  expect(partsOf({ ...INPUT, context_window: { context_window_size: 200_000, used_percentage: 0.2 } }).gauge?.used).toBe(1)
+  const small = partsOf({ ...INPUT, context_window: { context_window_size: 200_000, used_percentage: 0.2 } }).gauge
+  expect(small?.used).toBe(1)
+  expect(textOf(small?.label ?? [])).toBe(' 0.2% 400 ')
 })
 
 test('gauge, levels, limits and names follow oh-my-pi', () => {
@@ -68,7 +70,7 @@ test('under the prompt: the bar between its buttons, the engine hint beneath', a
   const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
   const bar = texts.join('')
   expect(bar).toContain('⬢ Opus 5.5 · ◕ xhigh › ◫ ━')
-  expect(bar).toContain(' 57% ─')
+  expect(bar).toContain(' 57% 570k ─')
   expect(bar).toContain('› 5h 40%')
   expect(bar.indexOf('⟦☰⟧')).toBeLessThan(bar.indexOf('⬢'))
   expect(bar.indexOf('⟦◨⟧')).toBeLessThan(bar.indexOf('⟦⊟⟧'))

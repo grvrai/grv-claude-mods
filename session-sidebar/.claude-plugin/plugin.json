@@ -1,6 +1,6 @@
 {
   "name": "session-sidebar",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A docked sidebar of this session's subagents, todos and changed files, shown as cards only when there is something to show",
   "author": {
     "name": "grvrai"

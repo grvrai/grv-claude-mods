@@ -95,7 +95,9 @@ export const register: Register = on => {
     const parts = partsOf({
       model: { id },
       effort: { level },
-      context_window: fillNow ? { context_window_size: fillNow.window, used_percentage: fillNow.percent } : undefined,
+      context_window: fillNow
+        ? { context_window_size: fillNow.window, used_percentage: fillNow.percent, total_input_tokens: fillNow.tokens }
+        : undefined,
       rate_limits: Object.fromEntries(windows.map(w => [w.kind, { used_percentage: w.percentUsed }])),
     } satisfies StatusInput)
     // Compaction cannot run during a turn, so the button rests dim until the turn ends.
@@ -135,7 +137,7 @@ export const register: Register = on => {
             </Text>
           </Box>
           {parts.gauge && rule(parts.gauge.used, '━', parts.gauge.color)}
-          {parts.gauge && <Box flexShrink={0}>{runs([parts.gauge.label])}</Box>}
+          {parts.gauge && <Box flexShrink={0}>{runs(parts.gauge.label)}</Box>}
           {parts.gauge ? rule(100 - parts.gauge.used, '─', C.dim) : <Box flexGrow={1} />}
           <Box flexShrink={0}>{runs(parts.tail)}</Box>
           <Box flexShrink={0}>

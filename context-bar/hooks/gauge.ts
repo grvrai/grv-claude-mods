@@ -68,7 +68,7 @@ export const modelName = (id: string) => {
 
 export const effortLabel = (effort: string) => EFFORT[effort] ?? (effort ? `◉ ${effort}` : '')
 
-export type Parts = { head: Run[]; gauge?: { used: number; color: string; label: Run }; tail: Run[] }
+export type Parts = { head: Run[]; gauge?: { used: number; color: string; label: Run[] }; tail: Run[] }
 
 // The bar's pieces: fixed runs either side of the gauge, and the share (1–99) the gauge's lit run takes of the room between.
 export const partsOf = (input: StatusInput): Parts => {
@@ -87,14 +87,18 @@ export const partsOf = (input: StatusInput): Parts => {
   if (!window) return { head, tail: limits }
   const pct = input.context_window?.used_percentage
   const color = levelColor(pct ?? 0, window)
-  const label = pct === undefined ? '' : ` ${pct < 10 ? pct.toFixed(1) : Math.round(pct)}% `
+  // The percent, then the tokens it stands for: the count reported, else worked out from the percent.
+  const tokens = input.context_window?.total_input_tokens ?? (pct === undefined ? undefined : (pct / 100) * window)
+  const label: Run[] =
+    pct === undefined
+      ? []
+      : [
+          { text: ` ${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`, color: pct > 100 ? C.error : color },
+          { text: ` ${formatTokens(Math.round(tokens ?? 0))} `, color: C.context },
+        ]
   return {
     head,
-    gauge: {
-      used: Math.min(99, Math.max(1, Math.round(pct ?? 0))),
-      color,
-      label: { text: label, color: pct !== undefined && pct > 100 ? C.error : color },
-    },
+    gauge: { used: Math.min(99, Math.max(1, Math.round(pct ?? 0))), color, label },
     tail: [{ text: ` ${formatTokens(window)} `, color: C.context }, { text: '─', color: C.dim }, ...limits],
   }
 }
