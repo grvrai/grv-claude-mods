@@ -72,3 +72,34 @@ test('subagents are listed and a click puts one in view', async ($, on) => {
   expect(viewed).toEqual([{ agentId: 'a1' }])
   await ui.unmount()
 })
+
+test('the sidebar opens only once there is something to show', async ($, on) => {
+  const opened: string[] = []
+  on('ui.panes', () => ({ value: [] }))
+  on('ui.open', ($, e) => {
+    opened.push(e.id)
+    return { value: { isPlaced: true } }
+  })
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Box } = $.ui.resolve(e)
+    return <Box />
+  })
+  on('tool.call', { tool: 'Edit' }, () => ({ result: { filePath: '/repo/a.py', structuredPatch: [] } }))
+  const band = await $.ui.mount({
+    plugin: 'session-sidebar',
+    surface: 'terminal',
+    component: 'AbovePrompt',
+    viewport: { columns: 170, rows: 50, isFullscreen: true },
+    props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 120, scroll: { offset: 0, bodyRows: 10 }, view: {} },
+  })
+  expect(opened).toEqual([])
+  await $.tool.call({ tool: 'Edit', file_path: '/repo/a.py', old_string: 'a', new_string: 'b' })
+  expect(opened).toEqual(['session'])
+  await band.unmount()
+  const ui = await $.ui.mount({ plugin: 'session-sidebar', surface: 'terminal', ...PANE })
+  const text = await textOf(ui)
+  expect(text).toContain('FILES')
+  expect(text).not.toContain('TODOS')
+  expect(text).not.toContain('SUBAGENTS')
+  await ui.unmount()
+})

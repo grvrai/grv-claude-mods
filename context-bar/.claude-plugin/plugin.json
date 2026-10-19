@@ -1,0 +1,7 @@
+{
+  "name": "context-bar",
+  "version": "0.1.0",
+  "description": "oh-my-pi style status band above the prompt: model, effort and a context-usage gauge",
+  "author": { "name": "grvrai" },
+  "types": "./types/index.d.ts"
+}

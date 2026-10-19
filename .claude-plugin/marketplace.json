@@ -1,7 +1,9 @@
 {
   "name": "grv-claude-mods",
-  "owner": { "name": "grvrai" },
-  "description": "Claude Code mods that redraw tool calls, questions and a session sidebar in the style of oh-my-pi",
+  "owner": {
+    "name": "grvrai"
+  },
+  "description": "Claude Code mods in the style of oh-my-pi: tool cards, question frames, a session sidebar and a context bar",
   "plugins": [
     {
       "name": "fold-tools",
@@ -17,6 +19,11 @@
       "name": "session-sidebar",
       "source": "./session-sidebar",
       "description": "A docked sidebar of this session's subagents, todos and files touched"
+    },
+    {
+      "name": "context-bar",
+      "source": "./context-bar",
+      "description": "oh-my-pi style status band above the prompt: model, effort and a context-usage gauge"
     }
   ]
 }

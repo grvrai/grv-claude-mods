@@ -33,7 +33,7 @@ const group = (calls: ReturnType<typeof read>[]) =>
 const textOf = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string }[]> }) =>
   (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
 
-test('an edit is a framed card with its badge and diff, folded or not', async $ => {
+test('a folded edit is its title line alone and unfolds into a framed diff', async $ => {
   const ui = await $.ui.mount({
     plugin: 'fold-tools',
     surface: 'terminal',
@@ -42,33 +42,38 @@ test('an edit is a framed card with its badge and diff, folded or not', async $ 
       structuredPatch: PATCH,
     }),
   })
-  const text = await textOf(ui)
-  expect(text).toContain('╭─── ')
+  let text = await textOf(ui)
   expect((await ui.find({ key: 'fold-t1' }))?.text).toBe('✎ Edit: ')
   expect(text).toContain('/repo/app/views.py')
+  expect(text).toContain('+2')
+  expect(text).not.toContain('│')
+  await ui.press({ key: 'fold-t1' })
+  text = await textOf(ui)
+  expect(text).toContain('╭─── ')
   expect(text).toContain('-  4│old value')
   expect(text).toContain('+   │new value')
-  expect(await ui.find({ key: 'more-t1' })).toBeUndefined()
+  expect((await ui.find({ key: 'more-t1' }))?.text).toContain('⟦collapse⟧')
+  await ui.press({ key: 'more-t1' })
+  expect(await textOf(ui)).not.toContain('│')
   await ui.unmount()
 })
 
-test('a bash card previews its tail, and its footer steps expand → show all → collapse', async $ => {
+test('a bash card unfolds to its tail, then ⟦show all⟧, then ⟦collapse⟧ back to its title', async $ => {
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...bash('t2') })
+  expect((await ui.find({ key: 'fold-t2' }))?.text).toBe('❯ Bash: ')
+  expect(await textOf(ui)).not.toContain('line 30')
+  await ui.press({ key: 'fold-t2' })
   let text = await textOf(ui)
   expect(text).toContain('$ ')
   expect(text).toContain('Output')
-  expect(text).toContain('line 30')
-  expect(text).not.toContain('line 27\n')
-  expect((await ui.find({ key: 'more-t2' }))?.text).toBe(' … 27 more earlier lines ⟦expand⟧ ')
-  await ui.press({ key: 'more-t2' })
-  text = await textOf(ui)
   expect(text).toContain('line 21')
-  expect((await ui.find({ key: 'more-t2' }))?.text).toContain('⟦show all⟧')
+  expect(text).not.toContain('line 20\n')
+  expect((await ui.find({ key: 'more-t2' }))?.text).toBe(' … 20 more earlier lines ⟦show all⟧ ')
   await ui.press({ key: 'more-t2' })
   expect(await textOf(ui)).toContain('line 1\n')
   expect((await ui.find({ key: 'more-t2' }))?.text).toContain('⟦collapse⟧')
   await ui.press({ key: 'more-t2' })
-  expect(await textOf(ui)).not.toContain('line 27\n')
+  expect(await textOf(ui)).not.toContain('line 30')
   await ui.unmount()
 })
 
@@ -151,6 +156,7 @@ test('cards and diff rows summarise each tool', () => {
   const file = cardOf('Read', { file_path: '/repo/a.py' }, { type: 'text', file: { filePath: '/repo/a.py', content: 'x\n', numLines: 10, startLine: 5, totalLines: 90 } }, '/repo')
   expect(file.target).toBe('a.py:5-14')
   expect(cardOf('Read', { file_path: '/home/me/x.md' }, {}, '/repo', '/home/me').target).toBe('~/x.md')
+  expect(cardOf('Grep', { pattern: 'a', path: '/repo' }, {}, '/repo').target).toBe('a')
   const grep = cardOf('Grep', { pattern: 'alpha' }, { mode: 'content', numLines: 3, numFiles: 2, content: 'a\nb\nc' }, '/repo')
   expect(grep.meta).toEqual(['3 matches', '2 files'])
   const rows = diffRows(PATCH)

@@ -77,15 +77,20 @@ export const register: Register = on => {
     if (hasSurvey || isWorking || view.agentId || !list.length || (await read($, isHidden))) return next(e)
     const els = $.ui.resolve(e)
     const { Box, Button } = els
+    // Other mods' rows (the context bar) stay beneath the questions, nearest the prompt.
+    const rest = await next(e)
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor={C.border} paddingX={1}>
-        {titleOf(els, 'Questions', String(list.length))}
-        <Box>
-          <Box flexDirection="column" flexGrow={1}>
-            {rowsOf(els, list)}
+      <Box flexDirection="column">
+        <Box flexDirection="column" borderStyle="round" borderColor={C.border} paddingX={1}>
+          {titleOf(els, 'Questions', String(list.length))}
+          <Box>
+            <Box flexDirection="column" flexGrow={1}>
+              {rowsOf(els, list)}
+            </Box>
+            <Button key="hide" plain dimColor label="✕" onPress={() => update($, isHidden, () => true)} />
           </Box>
-          <Button key="hide" plain dimColor label="✕" onPress={() => update($, isHidden, () => true)} />
         </Box>
+        {rest}
       </Box>
     )
   })

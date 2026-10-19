@@ -48,7 +48,13 @@ export const linesOf = (text: string) => (text.trim() ? text.replace(/\s+$/, '')
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : /(ch|sh|s|x)$/.test(word) ? 'es' : 's'}`
 
 export const relPath = (path: string, cwd: string, home = '') =>
-  cwd && path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : home && path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path
+  cwd && path === cwd
+    ? '.'
+    : cwd && path.startsWith(`${cwd}/`)
+      ? path.slice(cwd.length + 1)
+      : home && path.startsWith(`${home}/`)
+        ? `~${path.slice(home.length)}`
+        : path
 
 // Cuts to `room` columns, from the start for paths so the file name stays.
 export const clip = (text: string, room: number, keepEnd = false) =>
@@ -109,6 +115,8 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
   const i = obj(input)
   const o = obj(output)
   const rel = (p: unknown) => relPath(str(p), cwd, home)
+  // A search scoped to the project root names no folder.
+  const scope = rel(i.path) && rel(i.path) !== '.' ? ` in ${rel(i.path)}` : ''
   const hunks = (Array.isArray(o.structuredPatch) ? o.structuredPatch : []) as Hunk[]
   const icon = ICONS[tool] ?? DONE
   const card = ((): Card => {
@@ -171,7 +179,7 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
         return {
           title: 'Grep',
           icon,
-          target: `${str(i.pattern)}${i.path ? ` in ${rel(i.path)}` : ''}`,
+          target: `${str(i.pattern)}${scope}`,
           meta: [
             ...(o.mode === 'content' ? [plural(num(o.numLines), 'match')] : []),
             ...(num(o.numFiles) || files.length ? [plural(num(o.numFiles) || files.length, 'file')] : []),
@@ -184,7 +192,7 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
         return {
           title: 'Glob',
           icon,
-          target: `${str(i.pattern)}${i.path ? ` in ${rel(i.path)}` : ''}`,
+          target: `${str(i.pattern)}${scope}`,
           meta: [plural(num(o.numFiles), 'file'), ...(o.truncated ? ['truncated'] : [])],
           body: files.length ? { kind: 'tree', items: files.map(rel) } : undefined,
         }

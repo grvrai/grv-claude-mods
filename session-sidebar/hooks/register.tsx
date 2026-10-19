@@ -74,7 +74,7 @@ const subagentsOf = (els: Els, $: EngineInterface, list: Sub[], viewing: string 
           <Text color={C.accent}>← back to main</Text>
         </Button>
       )}
-      {rows.length ? rows : emptyOf(els, 'none yet')}
+      {rows}
     </Box>
   )
 }
@@ -84,20 +84,18 @@ const todosOf = (els: Els, list: Todo[]) => {
   const done = list.filter(t => t.status === 'completed').length
   return (
     <Box flexDirection="column">
-      {headOf(els, 'TODOS', list.length ? [{ text: `${done}/${list.length}` }] : [])}
-      {list.length
-        ? list.map(t => {
-            const mark = MARKS[t.status]
-            return (
-              <Text wrap="truncate-end">
-                <Text color={mark.color}>{mark.glyph} </Text>
-                <Text bold={t.status === 'in_progress'} color={t.status === 'completed' ? C.dim : undefined}>
-                  {t.subject}
-                </Text>
-              </Text>
-            )
-          })
-        : emptyOf(els, 'none yet')}
+      {headOf(els, 'TODOS', [{ text: `${done}/${list.length}` }])}
+      {list.map(t => {
+        const mark = MARKS[t.status]
+        return (
+          <Text wrap="truncate-end">
+            <Text color={mark.color}>{mark.glyph} </Text>
+            <Text bold={t.status === 'in_progress'} color={t.status === 'completed' ? C.dim : undefined}>
+              {t.subject}
+            </Text>
+          </Text>
+        )
+      })}
     </Box>
   )
 }
@@ -131,16 +129,32 @@ const filesOf = (els: Els, $: EngineInterface, list: Touched[], readCount: numbe
   return (
     <Box flexDirection="column">
       {headOf(els, 'FILES', [
-        ...(list.length ? [{ text: `${list.length} changed` }] : []),
+        { text: `${list.length} changed` },
         ...(readCount ? [{ text: `${readCount} read` }] : []),
       ])}
-      {rows.length ? rows : emptyOf(els, 'none yet')}
+      {rows}
     </Box>
   )
 }
 
 let cwd = ''
 let isSeeded = false
+// Where the terminal docks panes; the sidebar never opens as a takeover.
+let isFullscreen = false
+// The person closed it (✕ or /sidebar): it stays shut until /sidebar opens it.
+let isDismissed = false
+// The person opened it with /sidebar: it stays even while empty.
+let isPinned = false
+
+// Shown only while it has something to show: subagents, todos or changed files.
+const syncPane = async ($: EngineInterface) => {
+  if (!isFullscreen || isDismissed || isPinned) return
+  const [subs, list, touched, panes] = await Promise.all([read($, subagents), read($, todos), read($, files), $.ui.panes()])
+  const hasContent = subs.length + list.length + touched.length > 0
+  const isOpen = panes.some(p => p.id === PANE)
+  if (hasContent && !isOpen) await $.ui.open({ id: PANE, title: 'Session', columns: COLUMNS })
+  if (!hasContent && isOpen) await $.ui.close({ id: PANE })
+}
 
 // Subagents leave the engine's list a while after they end; the sidebar keeps their last word.
 const refresh = async ($: EngineInterface) => {
@@ -162,7 +176,9 @@ const refresh = async ($: EngineInterface) => {
     })
   }
   const next = [...byId.values()].slice(-20)
-  if (JSON.stringify(next) !== JSON.stringify(old)) await update($, subagents, () => next)
+  if (JSON.stringify(next) === JSON.stringify(old)) return
+  await update($, subagents, () => next)
+  await syncPane($)
 }
 
 // Tasks made before this mod loaded are only known to the TaskList tool.
@@ -173,18 +189,21 @@ const seed = async ($: EngineInterface) => {
   const tasks = ran && 'result' in ran ? (ran.result as BuiltinToolResults['TaskList'] | undefined)?.tasks : undefined
   if (tasks?.length && !(await read($, todos)).length) {
     await update($, todos, () => tasks.map(t => ({ id: t.id, subject: t.subject, status: t.status })))
+    await syncPane($)
   }
 }
 
-const touch = ($: EngineInterface, path: string, kind: Touched['kind'], add: number, del: number) =>
-  update($, files, list => {
+const touch = async ($: EngineInterface, path: string, kind: Touched['kind'], add: number, del: number) => {
+  await update($, files, list => {
     const old = list.find(f => f.path === path)
     const merged = old ? { ...old, add: old.add + add, del: old.del + del } : { path, kind, add, del }
     return [merged, ...list.filter(f => f.path !== path)].slice(0, 200)
   })
+  await syncPane($)
+}
 
 export const register: Register = on => {
-  let isAutoOpened = false
+  let isSynced = false
 
   on('session.start', async ($, e, next) => {
     cwd = await $.session.cwd()
@@ -200,15 +219,26 @@ export const register: Register = on => {
 
   on('command.run', { command: 'sidebar' }, async $ => {
     const isOpen = (await $.ui.panes()).some(p => p.id === PANE)
+    isPinned = !isOpen
+    isDismissed = isOpen
     if (isOpen) await $.ui.close({ id: PANE })
     else await $.ui.open({ id: PANE, title: 'Session', columns: COLUMNS })
     return { text: `Sidebar ${isOpen ? 'hidden' : 'shown'}.` }
+  })
+
+  on('ui.close', async ($, e, next) => {
+    if (e.id === PANE && e.origin.kind === 'person') {
+      isDismissed = true
+      isPinned = false
+    }
+    return next(e)
   })
 
   on('tool.call', { tool: 'TodoWrite' }, async ($, e, next) => {
     const ran = await next(e)
     if ('result' in ran && !ran.isError) {
       await update($, todos, () => e.todos.map(t => ({ id: t.content, subject: t.content, status: t.status })))
+      await syncPane($)
     }
     return ran
   })
@@ -221,6 +251,7 @@ export const register: Register = on => {
         ...list.filter(t => t.id !== task.id),
         { id: task.id, subject: task.subject, status: 'pending' as const },
       ])
+      await syncPane($)
     }
     return ran
   })
@@ -235,6 +266,7 @@ export const register: Register = on => {
         ? list.filter(t => t.id !== taskId)
         : list.map(t => (t.id === taskId ? { ...t, subject: subject ?? t.subject, status: kept ?? t.status } : t)),
     )
+    await syncPane($)
     return ran
   })
 
@@ -271,11 +303,12 @@ export const register: Register = on => {
     return ran
   })
 
-  // Opens itself only where the terminal docks panes, so it is a sidebar and not a takeover.
+  // The band is drawn early and says whether the terminal docks panes.
   on('ui.render', { component: 'AbovePrompt' }, ($, e, next) => {
-    if (!isAutoOpened && e.viewport?.isFullscreen === true) {
-      isAutoOpened = true
-      void $.ui.open({ id: PANE, title: 'Session', columns: COLUMNS })
+    isFullscreen = e.viewport?.isFullscreen === true
+    if (isFullscreen && !isSynced) {
+      isSynced = true
+      void syncPane($)
     }
     return next(e)
   })
@@ -285,11 +318,15 @@ export const register: Register = on => {
     const { Box } = els
     const [subs, list, touched, seen] = await Promise.all([read($, subagents), read($, todos), read($, files), read($, reads)])
     const width = e.props.bodyColumns
+    const viewing = e.props.view.agentId
+    const sections = [
+      ...(subs.length || viewing ? [subagentsOf(els, $, subs, viewing, width)] : []),
+      ...(list.length ? [todosOf(els, list)] : []),
+      ...(touched.length ? [filesOf(els, $, touched, seen.length, cwd, width)] : []),
+    ]
     return (
       <Box flexDirection="column" gap={1}>
-        {subagentsOf(els, $, subs, e.props.view.agentId, width)}
-        {todosOf(els, list)}
-        {filesOf(els, $, touched, seen.length, cwd, width)}
+        {sections.length ? sections : emptyOf(els, 'Subagents, todos and changed files show here.')}
       </Box>
     )
   })

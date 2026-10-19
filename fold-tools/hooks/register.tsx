@@ -10,8 +10,8 @@ import type { Status, Tone } from './style'
 const SKIP = new Set(['AskUserQuestion', 'Agent', 'Task'])
 // Tools whose card draws its own body, so the engine's result block is hidden.
 const OWN = new Set(['Edit', 'Write', 'Read', 'Bash', 'Grep', 'Glob', 'WebFetch'])
-// Body rows shown folded and unfolded, as oh-my-pi's PREVIEW_LIMITS; ⟦show all⟧ lifts it to FULL.
-const CAPS: Record<Body['kind'], [number, number]> = { diff: [8, 40], code: [3, 12], shell: [3, 10], text: [3, 12], tree: [6, 24] }
+// Body rows an unfolded card shows, as oh-my-pi's expanded PREVIEW_LIMITS; ⟦show all⟧ lifts it to FULL.
+const CAPS: Record<Body['kind'], number> = { diff: 40, code: 12, shell: 10, text: 12, tree: 24 }
 const FULL = 400
 const RULE = '─'.repeat(400)
 const INTENT_LINE = /^\s*»\s+(.+?)\s*$/
@@ -50,7 +50,6 @@ const foldOf = async ($: EngineInterface, e: { requestId: string }, fallback?: b
     isOpen: own.gen === m.gen ? own.isOpen : (fallback ?? m.isOpen),
     isFull: !!own.isFull,
     toggle: () => write(isOpen => ({ isOpen: !isOpen, isFull: false })),
-    expand: () => write(() => ({ isOpen: true, isFull: false })),
     showAll: () => write(() => ({ isOpen: true, isFull: true })),
   }
 }
@@ -142,8 +141,7 @@ const linesOf = ({ Text }: Els, lines: string[], color: string): Row[] =>
 // What a body shows at its fold, in rows one terminal row tall so the rails can match them.
 const shownOf = (els: Els, body: Body, fold: Fold): Shown => {
   const { Box, Text, Code } = els
-  const [folded, open] = CAPS[body.kind]
-  const cap = fold.isFull ? FULL : fold.isOpen ? open : folded
+  const cap = fold.isFull ? FULL : CAPS[body.kind]
   switch (body.kind) {
     case 'diff': {
       const list = diffRows(body.hunks)
@@ -188,13 +186,10 @@ const shownOf = (els: Els, body: Body, fold: Fold): Shown => {
 }
 
 // The control oh-my-pi puts at a body's end: what is cut and how to see it.
-const footerOf = (shown: Shown, body: Body, fold: Fold): Footer => {
-  const more = shown.hidden > 0 ? `… ${shown.hidden} more ${shown.unit} ` : ''
-  if (!fold.isOpen && shown.hidden > 0) return { more, label: 'expand', onPress: fold.expand }
-  if (fold.isOpen && shown.hidden > 0) return { more, label: 'show all', onPress: fold.showAll }
-  if (fold.isOpen && shown.total > CAPS[body.kind][0]) return { more, label: 'collapse', onPress: fold.toggle }
-  return undefined
-}
+const footerOf = (shown: Shown, fold: Fold): Footer =>
+  shown.hidden > 0
+    ? { more: `… ${shown.hidden} more ${shown.unit} `, label: 'show all', onPress: fold.showAll }
+    : { more: '', label: 'collapse', onPress: fold.toggle }
 
 // oh-my-pi's output block: the header set into the top rule, rails, labelled dividers, the footer in the bottom rule.
 const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], shown: Shown, footer: Footer) => {
@@ -273,7 +268,7 @@ const branchesOf = (els: Els, id: string, shown: Shown, footer: Footer) => {
 // Framed even when folded, as oh-my-pi frames these blocks; Read frames once opened, Grep and Glob never.
 const isFramed = (card: Card, s: Status, isOpen: boolean) => {
   const kind = card.body?.kind
-  return kind === 'shell' || (!s.isRunning && (kind === 'diff' || kind === 'text' || (kind === 'code' && (isOpen || card.title === 'Create'))))
+  return isOpen && kind !== undefined && kind !== 'tree' && (kind === 'shell' || !s.isRunning)
 }
 
 // One card: its header stays on its row when toggled; the body unfolds beneath or inside its frame.
@@ -284,11 +279,10 @@ const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: St
   const tone = toneOf(s)
   if (!lead && card.body && isFramed(card, s, fold.isOpen)) {
     const shown = shownOf(els, card.body, fold)
-    return frameOf(els, id, tone, head, shown, footerOf(shown, card.body, fold))
+    return frameOf(els, id, tone, head, shown, footerOf(shown, fold))
   }
   const canOpen = !s.isRunning && (card.body !== undefined || hasEngineBody)
-  // Branches show folded too (capped), as oh-my-pi lists a search's first matches.
-  const body = canOpen && (fold.isOpen || card.body?.kind === 'tree') ? card.body : undefined
+  const body = canOpen && fold.isOpen ? card.body : undefined
   const shown = body && shownOf(els, body, fold)
   return (
     <Box flexDirection="column">
@@ -304,9 +298,9 @@ const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: St
       {body &&
         shown &&
         (body.kind === 'tree' ? (
-          branchesOf(els, id, shown, footerOf(shown, body, fold))
+          branchesOf(els, id, shown, footerOf(shown, fold))
         ) : (
-          <Box marginLeft={lead ? 3 : 0}>{frameOf(els, id, tone, [], shown, footerOf(shown, body, fold))}</Box>
+          <Box marginLeft={lead ? 3 : 0}>{frameOf(els, id, tone, [], shown, footerOf(shown, fold))}</Box>
         ))}
     </Box>
   )
