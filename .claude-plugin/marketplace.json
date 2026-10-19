@@ -18,7 +18,7 @@
     {
       "name": "session-sidebar",
       "source": "./session-sidebar",
-      "description": "Cards above the prompt for this session's subagents, todos and changed files"
+      "description": "A docked sidebar of this session's subagents, todos and changed files"
     },
     {
       "name": "context-bar",

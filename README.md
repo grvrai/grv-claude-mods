@@ -44,7 +44,7 @@ Click a card's icon and title to unfold it into oh-my-pi's output block:
 - `/fold open` and `/fold close` open or close every card; `/fold` toggles.
 - Adds one system-prompt section asking Claude to write `» <intent>` (a 2–6-word present-participle phrase) before each tool call. That line is drawn as the bold heading of the cards that follow.
 - Left to Claude Code's own drawing: `AskUserQuestion` (see turn-questions) and `Agent` rows.
-- Spacing: one blank row more than Claude Code gives above each message, so prompts, replies and each intent with its cards read as separate blocks; an intent sits right on its cards.
+- Spacing: one blank row above every card, group and intent, as Claude Code spaces the rows it draws itself, so tool calls never sit against the message above.
 
 ### turn-questions
 
@@ -54,21 +54,24 @@ Click a card's icon and title to unfold it into oh-my-pi's output block:
 
 ### session-sidebar
 
-Cards above the prompt, side by side and right-aligned: one for each of subagents, todos and changed files that has something to show.
+A docked sidebar (`Session`) on the right, with a rounded card for each of subagents, todos and changed files that has something to show.
 
 ```
-            ╭─ TODOS · 1/2 ────────────╮ ╭─ FILES · 1 changed ──────╮
-            │ ○ Style the cards        │ │ A out.txt          +4 -1 │
-            │ ✔ Build the bar          │ ╰──────────────────────────╯
-            ╰──────────────────────────╯
-──────────────────────────────────────────────────────────────────────
-❯ _
+╭─ TODOS · 1/2 ─────────────────╮
+│ ○ Style the cards             │
+│ ✔ Build the bar               │
+╰───────────────────────────────╯
+
+╭─ FILES · 1 changed ───────────╮
+│ A out.txt                  +3 │
+╰───────────────────────────────╯
 ```
 
 - **SUBAGENTS**: each subagent's type, task, status and run time. Click one to show its transcript; `← back to main` returns.
-- **TODOS**: live from `TaskCreate`/`TaskUpdate`/`TodoWrite`, seeded from `TaskList` on the first turn; unfinished first.
+- **TODOS**: live from `TaskCreate`/`TaskUpdate`/`TodoWrite`, seeded from `TaskList` on the first turn.
 - **FILES**: files edited (`M`) or created (`A`) with `+N -M` counts, plus how many files were read. Click a path to copy it.
-- A card shows six rows at most, then `… N more`. `/sidebar` hides or shows the cards.
+
+It opens by itself once a subagent, todo or changed file exists, closes when none is left, and only where the terminal docks panes (fullscreen, 110+ columns), asking for 34 columns. Closing it (`✕` or `/sidebar`) keeps it closed until `/sidebar` opens it again. The divider and the dock area are Claude Code's own; a dock width you have dragged is kept (`pluginPanes.dockColumns` in `~/.claude.json`) and wins over the request.
 
 ### context-bar
 

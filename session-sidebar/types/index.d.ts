@@ -13,6 +13,6 @@ export type Touched = { path: string; kind: 'A' | 'M'; add: number; del: number 
 
 declare module 'claude-code' {
   interface PluginState {
-    'session-sidebar': { subagents: Sub[]; todos: Todo[]; files: Touched[]; reads: string[]; isHidden: boolean }
+    'session-sidebar': { subagents: Sub[]; todos: Todo[]; files: Touched[]; reads: string[] }
   }
 }

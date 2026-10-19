@@ -15,7 +15,7 @@ const CAPS: Record<Body['kind'], number> = { diff: 40, code: 12, shell: 10, text
 const FULL = 400
 const RULE = '─'.repeat(400)
 const INTENT_LINE = /^\s*»\s+(.+?)\s*$/
-// Blank rows added above each message, on top of the engine's one.
+// One blank row above each card, as the engine gives the tool rows it draws itself.
 const GAP = 1
 const INTENT = {
   id: 'fold-tools:intent',
@@ -334,20 +334,14 @@ export const register: Register = on => {
     return { sections: [...sections.filter(s => s.id !== INTENT.id), INTENT] }
   })
 
-  // One more blank row than the engine gives above each message; an intent hugs the cards beneath it.
-  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
-    const { Box } = $.ui.resolve(e)
-    return <Box marginTop={GAP}>{await next(e)}</Box>
-  })
-
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    const { Box, Text } = $.ui.resolve(e)
     const lines = e.props.text.split('\n')
     const intents = e.props.isSummary ? [] : lines.flatMap(line => INTENT_LINE.exec(line)?.[1] ?? [])
-    if (!intents.length) return <Box marginTop={GAP}>{await next(e)}</Box>
+    if (!intents.length) return next(e)
+    const { Box, Text } = $.ui.resolve(e)
     const rest = lines.filter(line => !INTENT_LINE.test(line)).join('\n').trim()
     const heads = (
-      <Box flexDirection="column" marginTop={GAP + 1}>
+      <Box flexDirection="column" marginTop={GAP}>
         {intents.map(text => (
           <Text>
             <Text color={C.accent}>» </Text>
@@ -359,7 +353,7 @@ export const register: Register = on => {
     if (!rest) return heads
     const engine = await next({ ...e, props: { ...e.props, text: rest } })
     return (
-      <Box flexDirection="column" marginTop={GAP}>
+      <Box flexDirection="column">
         {engine}
         {heads}
       </Box>
@@ -370,7 +364,9 @@ export const register: Register = on => {
     const { tool, input, output } = e.props
     if (SKIP.has(tool)) return next(e)
     const els = $.ui.resolve(e)
-    return rowOf($, els, e.requestId, cardOf(tool, input, output, cwd, home), e.props, '', !OWN.has(tool))
+    const { Box } = els
+    const card = cardOf(tool, input, output, cwd, home)
+    return <Box marginTop={GAP}>{await rowOf($, els, e.requestId, card, e.props, '', !OWN.has(tool))}</Box>
   })
 
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
@@ -387,7 +383,9 @@ export const register: Register = on => {
     const { Box, Button, Text } = els
     const { calls } = e.props
     const only = calls.length === 1 ? calls[0] : undefined
-    if (only) return rowOf($, els, only.tool_use_id ?? e.requestId, cardOf(only.tool, only.input, only.output, cwd, home), only, '', false)
+    if (only) {
+      return <Box marginTop={GAP}>{await rowOf($, els, only.tool_use_id ?? e.requestId, cardOf(only.tool, only.input, only.output, cwd, home), only, '', false)}</Box>
+    }
     const fold = await foldOf($, e, true)
     const icon = iconOf(
       {
@@ -408,7 +406,7 @@ export const register: Register = on => {
         </Box>
       </Box>
     )
-    if (!fold.isOpen) return head
+    if (!fold.isOpen) return <Box marginTop={GAP}>{head}</Box>
     const branches = await Promise.all(
       calls.map((c, n) =>
         rowOf(
@@ -423,7 +421,7 @@ export const register: Register = on => {
       ),
     )
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" marginTop={GAP}>
         {head}
         <Box flexDirection="column" paddingLeft={2}>
           {branches}
