@@ -22,10 +22,6 @@ export const C = {
   sep: '#808080',
 }
 export const ICON = { model: '⬢', context: '◫', fast: '⚡' }
-// Claude Code sets the status line two columns in and cuts it a few columns short of the edge.
-const STATUS_INDENT = 2
-const STATUS_MARGIN = 4
-const MIN_GAUGE = 12
 const SEP = ' › '
 
 const EFFORT: Record<string, string> = {
@@ -72,33 +68,10 @@ export const modelName = (id: string) => {
 
 export const effortLabel = (effort: string) => EFFORT[effort] ?? (effort ? `◉ ${effort}` : '')
 
-// The rule as runs: the used share lit, its percent set right after it, the window at the end.
-export const gaugeOf = (width: number, usage: Usage): Run[] => {
-  const pct = usage.percent === undefined ? undefined : Math.max(0, usage.percent)
-  const color = levelColor(pct ?? 0, usage.window)
-  const windowLabel = ` ${formatTokens(usage.window)} `
-  const pctLabel = pct === undefined ? '' : ` ${pct < 10 ? pct.toFixed(1) : Math.round(pct)}% `
-  const scale = Math.max(1, width - windowLabel.length - 1)
-  const used = Math.min(scale, Math.max(1, Math.round((Math.min(100, pct ?? 0) / 100) * scale)))
-  const start = Math.max(0, Math.min(used, scale - pctLabel.length))
-  const cells = (from: number, to: number): Run[] => {
-    const lit = Math.max(from, Math.min(to, used))
-    return [
-      { text: '━'.repeat(lit - from), color },
-      { text: '─'.repeat(to - lit), color: C.dim },
-    ]
-  }
-  return [
-    ...cells(0, start),
-    { text: pctLabel, color: pct !== undefined && pct > 100 ? C.error : color },
-    ...cells(Math.min(scale, start + pctLabel.length), scale),
-    { text: windowLabel, color: C.context },
-    { text: '─', color: C.dim },
-  ].filter(r => r.text)
-}
+export type Parts = { head: Run[]; gauge?: { used: number; color: string; label: Run }; tail: Run[] }
 
-// oh-my-pi's bar: model and effort, the context gauge filling the row, the rate-limit windows.
-export const barOf = (input: StatusInput, columns: number): Run[] => {
+// The bar's pieces: fixed runs either side of the gauge, and the share (1–99) the gauge's lit run takes of the room between.
+export const partsOf = (input: StatusInput): Parts => {
   const name = input.model?.display_name || modelName(input.model?.id ?? '') || 'model'
   const level = input.effort?.level ?? ''
   const head: Run[] = [
@@ -109,15 +82,19 @@ export const barOf = (input: StatusInput, columns: number): Run[] => {
   const windows = Object.entries(input.rate_limits ?? {}).flatMap(([kind, w]) =>
     w?.used_percentage === undefined ? [] : [{ kind, percentUsed: w.used_percentage }],
   )
-  const tail = limitRuns(windows).flatMap((r, n): Run[] => [{ text: n ? ' · ' : SEP, color: C.sep }, r])
-  const width = (runs: Run[]) => runs.reduce((n, r) => n + r.text.length, 0)
-  const room = columns - STATUS_INDENT - STATUS_MARGIN - width(head) - width(tail)
-  const ctx = input.context_window
-  if (!ctx?.context_window_size) return [...head, ...tail]
-  const usage = { window: ctx.context_window_size, percent: ctx.used_percentage, tokens: ctx.total_input_tokens }
-  const gauge: Run[] =
-    room >= MIN_GAUGE
-      ? gaugeOf(room, usage)
-      : [{ text: `${usage.percent === undefined ? '?' : `${usage.percent.toFixed(1)}%`}/${formatTokens(usage.window)}`, color: levelColor(usage.percent ?? 0, usage.window) }]
-  return [...head, ...gauge, ...tail]
+  const limits = limitRuns(windows).flatMap((r, n): Run[] => [{ text: n ? ' · ' : SEP, color: C.sep }, r])
+  const window = input.context_window?.context_window_size
+  if (!window) return { head, tail: limits }
+  const pct = input.context_window?.used_percentage
+  const color = levelColor(pct ?? 0, window)
+  const label = pct === undefined ? '' : ` ${pct < 10 ? pct.toFixed(1) : Math.round(pct)}% `
+  return {
+    head,
+    gauge: {
+      used: Math.min(99, Math.max(1, Math.round(pct ?? 0))),
+      color,
+      label: { text: label, color: pct !== undefined && pct > 100 ? C.error : color },
+    },
+    tail: [{ text: ` ${formatTokens(window)} `, color: C.context }, { text: '─', color: C.dim }, ...limits],
+  }
 }

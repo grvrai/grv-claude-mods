@@ -2,13 +2,14 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SessionRateLimit } from 'claude-code'
 
 import type { Usage } from '../types'
-import { barOf, C } from './gauge'
-import type { StatusInput } from './gauge'
+import { C, partsOf } from './gauge'
+import type { Run, StatusInput } from './gauge'
 
-// Icon buttons: the agents list before the bar, compact after it; with brackets and a space each takes four columns.
+// Icon buttons: the agents list before the bar; the sidebar toggle and compact after it.
 const AGENTS = '☰'
+const SIDEBAR = '◨'
 const COMPACT = '⊟'
-const BUTTONS_WIDTH = 8
+const RULE = 400
 // Commands after which the model or effort may have changed.
 const RETUNE = new Set(['model', 'effort', 'fast', 'config'])
 
@@ -43,10 +44,10 @@ const retune = async ($: EngineInterface) => {
   if (typeof settings.effortLevel === 'string') await setEffort($, settings.effortLevel)
 }
 
-// /background sends the session on and shows the agents list, as ← does; a press may not wait on a command itself.
-const toAgents = ($: EngineInterface) => {
+// A press may not wait on a command itself, so each runs once the press is done.
+const runLater = ($: EngineInterface, command: string, what: string) => {
   $.clock.after(0, () => {
-    void $.command.run({ command: 'background' }).catch((err: Error) => $.ui.toast(`Could not open the agents list: ${err.message}`))
+    void $.command.run({ command }).catch((err: Error) => $.ui.toast(`Could not ${what}: ${err.message}`))
   })
 }
 
@@ -86,20 +87,32 @@ export const register: Register = on => {
     return ran
   })
 
-  // Under the prompt, oh-my-pi's bar between an agents-list button and a compact button; the engine's hint stays beneath.
+  // Under the prompt, oh-my-pi's bar across the full width: the agents button, model and effort, the context gauge, the rate limits, the sidebar and compact buttons.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     const hint = await next(e)
     const [fillNow, id, level, windows] = await Promise.all([read($, usage), read($, model), read($, effort), read($, limits)])
     const { Box, Button, Text } = $.ui.resolve(e)
-    const input: StatusInput = {
+    const parts = partsOf({
       model: { id },
       effort: { level },
       context_window: fillNow ? { context_window_size: fillNow.window, used_percentage: fillNow.percent } : undefined,
       rate_limits: Object.fromEntries(windows.map(w => [w.kind, { used_percentage: w.percentUsed }])),
-    }
-    const runs = barOf(input, (e.viewport?.columns ?? 100) - BUTTONS_WIDTH)
+    } satisfies StatusInput)
     // Compaction cannot run during a turn, so the button rests dim until the turn ends.
     const isIdle = !e.props.isWorking
+    const runs = (list: Run[]) => (
+      <Text>
+        {list.map(r => (
+          <Text color={r.color}>{r.text}</Text>
+        ))}
+      </Text>
+    )
+    // Lit and unlit runs share the room between the fixed pieces by the context used, so the bar fills any width.
+    const rule = (grow: number, glyph: string, color: string) => (
+      <Box flexGrow={grow} width={0} height={1} overflow="hidden">
+        <Text color={color}>{glyph.repeat(RULE)}</Text>
+      </Box>
+    )
     const chip = (key: string, icon: string, color: string, onPress: () => unknown) => (
       <Button key={key} plain onPress={onPress}>
         <Text color={C.dim}>⟦</Text>
@@ -111,17 +124,23 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box height={1}>
           <Box flexShrink={0}>
-            {chip('agents', AGENTS, C.context, () => toAgents($))}
+            {chip('agents', AGENTS, C.context, () => runLater($, 'background', 'open the agents list'))}
             <Text> </Text>
           </Box>
           <Box flexShrink={1} height={1} overflow="hidden">
-            <Text wrap="truncate-end">
-              {runs.map(r => (
+            <Text wrap="truncate">
+              {parts.head.map(r => (
                 <Text color={r.color}>{r.text}</Text>
               ))}
             </Text>
           </Box>
+          {parts.gauge && rule(parts.gauge.used, '━', parts.gauge.color)}
+          {parts.gauge && <Box flexShrink={0}>{runs([parts.gauge.label])}</Box>}
+          {parts.gauge ? rule(100 - parts.gauge.used, '─', C.dim) : <Box flexGrow={1} />}
+          <Box flexShrink={0}>{runs(parts.tail)}</Box>
           <Box flexShrink={0}>
+            <Text> </Text>
+            {chip('sidebar', SIDEBAR, C.context, () => runLater($, 'sidebar', 'toggle the sidebar'))}
             <Text> </Text>
             {chip('compact', COMPACT, isIdle ? C.context : C.dim, () => (isIdle ? compact($) : undefined))}
           </Box>

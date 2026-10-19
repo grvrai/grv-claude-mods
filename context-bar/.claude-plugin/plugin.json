@@ -1,7 +1,7 @@
 {
   "name": "context-bar",
-  "version": "0.5.0",
-  "description": "oh-my-pi style bar under the prompt: model, effort, a context-usage gauge, rate limits, and agents and compact buttons",
+  "version": "0.6.0",
+  "description": "oh-my-pi style bar under the prompt: model, effort, a context-usage gauge, rate limits, and agents, sidebar and compact buttons",
   "author": {
     "name": "grvrai"
   },

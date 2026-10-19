@@ -182,7 +182,7 @@ test('cards and intents keep one blank row above them; messages keep the engine 
   await card.unmount()
 })
 
-test('a folded card is one line; unfolded output hangs on a rail; prompts get a frame of their own', async $ => {
+test('a folded card is one line; unfolded output hangs on a rail; prompts are one unframed line', async $ => {
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...bash('t10') })
   let text = await textOf(ui)
   expect(text).not.toContain('╭')
@@ -204,7 +204,10 @@ test('a folded card is one line; unfolded output hangs on a rail; prompts get a 
   expect(text).toContain('└─ ')
   await grep.unmount()
   const prompt = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'UserMessage', props: { text: 'hello', origin: { kind: 'composer' }, isExpanded: false } })
-  expect(await prompt.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'round' } })
+  const drawn = await prompt.drawn()
+  expect(drawn).toMatchObject({ type: 'Box' })
+  expect(JSON.stringify(drawn)).not.toContain('borderStyle')
+  expect((await prompt.findAll({ type: 'Text' })).map(t => t.text).join('')).toContain('❯ hello')
   await prompt.unmount()
 })
 

@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
-import { barOf, C, formatTokens, gaugeOf, levelColor, limitRuns, modelName } from '../hooks/gauge'
+import { C, formatTokens, levelColor, limitRuns, modelName, partsOf } from '../hooks/gauge'
 
 const INPUT = {
   model: { id: 'claude-opus-5-5', display_name: 'Opus 5.5' },
@@ -12,23 +12,18 @@ const INPUT = {
 
 const textOf = (runs: { text: string }[]) => runs.map(r => r.text).join('')
 
-test('the status line fills the row: model, effort, gauge, rate limits', () => {
-  const line = textOf(barOf(INPUT, 100))
-  expect(line.startsWith('⬢ Opus 5.5 · ◕ xhigh › ◫ ━')).toBe(true)
-  expect(line).toContain(' 38% ')
-  expect(line).toContain(' 1M ─ › 5h 55% · 7d 20%')
-  expect(line.length).toBe(100 - 2 - 4)
-})
-
-test('a narrow row drops the rule and keeps the figures', () => {
-  const line = textOf(barOf(INPUT, 50))
-  expect(line).toContain('◫ 38.0%/1M')
-  expect(line).not.toContain('━')
+test('the bar splits into model and effort, a gauge sized by the fill, and the window and rate limits', () => {
+  const parts = partsOf(INPUT)
+  expect(textOf(parts.head)).toBe('⬢ Opus 5.5 · ◕ xhigh › ◫ ')
+  expect(parts.gauge).toEqual({ used: 38, color: C.purple, label: { text: ' 38% ', color: C.purple } })
+  expect(textOf(parts.tail)).toBe(' 1M ─ › 5h 55% · 7d 20%')
 })
 
 test('fast mode, a missing window and a missing effort read sensibly', () => {
-  const line = textOf(barOf({ model: { id: 'claude-haiku-5-5' }, fast_mode: true }, 80))
-  expect(line).toBe('⬢ Haiku 5.5 ⚡ › ◫ ')
+  const parts = partsOf({ model: { id: 'claude-haiku-5-5' }, fast_mode: true })
+  expect(textOf(parts.head)).toBe('⬢ Haiku 5.5 ⚡ › ◫ ')
+  expect(parts.gauge).toBeUndefined()
+  expect(partsOf({ ...INPUT, context_window: { context_window_size: 200_000, used_percentage: 0.2 } }).gauge?.used).toBe(1)
 })
 
 test('gauge, levels, limits and names follow oh-my-pi', () => {
@@ -43,11 +38,6 @@ test('gauge, levels, limits and names follow oh-my-pi', () => {
   expect(modelName('claude-opus-5-5')).toBe('Opus 5.5')
   expect(modelName('claude-sonnet-4-5-20250929')).toBe('Sonnet 4.5')
   expect(modelName('claude-opus-5-5[1m]')).toBe('Opus 5.5 1M')
-  const runs = gaugeOf(40, { window: 200_000, percent: 25 })
-  expect(textOf(runs).length).toBe(40)
-  expect(runs[0]).toEqual({ text: '━'.repeat(8), color: C.used })
-  expect(runs[1]?.text).toBe(' 25% ')
-  expect(textOf(gaugeOf(20, { window: 200_000 }))).toBe(`━${'─'.repeat(12)} 200k ─`)
 })
 
 const HINT = { component: 'PromptHint', viewport: { columns: 120, rows: 40 }, props: { isDraft: false, isWorking: false, hint: '? for shortcuts' } } as const
@@ -65,7 +55,7 @@ const stubs = (on: On) => {
   })
 }
 
-test('under the prompt: the bar, a compact button at its end, the engine hint beneath', async ($, on) => {
+test('under the prompt: the bar between its buttons, the engine hint beneath', async ($, on) => {
   stubs(on)
   // The test engine holds no conversation to compact, so the attempt surfaces as the mod's toast.
   const toasts: string[] = []
@@ -76,13 +66,14 @@ test('under the prompt: the bar, a compact button at its end, the engine hint be
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   const ui = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...HINT })
   const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
-  const bar = texts.find(t => t.startsWith('⬢')) ?? ''
+  const bar = texts.join('')
   expect(bar).toContain('⬢ Opus 5.5 · ◕ xhigh › ◫ ━')
-  expect(bar).toContain(' 57% ')
+  expect(bar).toContain(' 57% ─')
   expect(bar).toContain('› 5h 40%')
-  expect((await ui.find({ key: 'compact' }))?.text).toBe('⟦⊟⟧')
-  expect((await ui.find({ key: 'agents' }))?.text).toBe('⟦☰⟧')
-  expect(texts.indexOf('? for shortcuts')).toBeGreaterThan(texts.indexOf(bar))
+  expect(bar.indexOf('⟦☰⟧')).toBeLessThan(bar.indexOf('⬢'))
+  expect(bar.indexOf('⟦◨⟧')).toBeLessThan(bar.indexOf('⟦⊟⟧'))
+  for (const [key, text] of [['agents', '⟦☰⟧'], ['sidebar', '⟦◨⟧'], ['compact', '⟦⊟⟧']]) expect((await ui.find({ key }))?.text).toBe(text)
+  expect(bar.indexOf('? for shortcuts')).toBeGreaterThan(bar.indexOf('5h 40%'))
   await ui.press({ key: 'compact' })
   expect(toasts.some(t => t.startsWith('Compact did not run'))).toBe(true)
   await ui.unmount()
@@ -101,7 +92,7 @@ test('the compact button rests while a turn runs', async ($, on) => {
   await ui.unmount()
 })
 
-test('the agents button runs /background, which shows the agents list', async ($, on) => {
+test('the agents button runs /background, which shows the agents list; the sidebar button runs /sidebar', async ($, on) => {
   stubs(on)
   const clock = mock.clock(on)
   const ran: string[] = []
@@ -111,8 +102,9 @@ test('the agents button runs /background, which shows the agents list', async ($
   })
   const ui = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', ...HINT })
   await ui.press({ key: 'agents' })
+  await ui.press({ key: 'sidebar' })
   await clock.advance(1)
   await clock.settle()
-  expect(ran).toContain('background')
+  expect(ran).toEqual(['background', 'sidebar'])
   await ui.unmount()
 })

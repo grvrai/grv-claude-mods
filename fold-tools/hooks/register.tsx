@@ -382,14 +382,14 @@ export const register: Register = on => {
     }
   })
 
-  // The person's own prompts in a blue frame: a prompt icon before the text, its submission status after it.
+  // The person's own prompts as one unframed line, as the tool calls are: a blue prompt icon, the text, its submission status.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.props.origin.kind !== 'composer') return next(e)
     const { Box, Text } = $.ui.resolve(e)
     const isQueued = (await read($, queued)).some(q => q.text === e.props.text)
     const frame = isQueued ? await read($, tick) : 0
     return (
-      <Box borderStyle="round" borderColor={C.user} paddingX={1}>
+      <Box>
         <Box flexShrink={0}>
           <Text bold color={C.user}>
             ❯{' '}

@@ -34,7 +34,7 @@ Click a call's icon and name to unfold it; its output hangs beneath on a rail:
 - An unfolded call shows up to 10 lines of shell output (its tail), 40 diff lines or 12 lines of code or text; `⟦show all⟧` lifts the cap and `⟦collapse⟧` folds it back. `/fold open|close` opens or closes every call.
 - A running call's icon is oh-my-pi's braille spinner; the rail is dim when a call succeeded, amber while it runs and red when it failed. Tool names are oh-my-pi's amber.
 - Diffs use oh-my-pi's gutter (`-113│`), whole-line color and inverted changed words. Grep and Glob hang matches on `├─`/`└─` branches; a group of several calls is a line with a branch per call, each unfolding under it.
-- Your own prompts sit in a rounded blue frame with a `❯` icon and their submission status: an animated `◴◷◶◵` clock while the prompt is queued behind a running turn, then `✓` once the engine hands it to Claude (at its next request, mid-turn included). A prompt pushed in early with ctrl+x ctrl+s reads queued until that request.
+- Your own prompts are one unframed line, spaced as the tool calls are: a blue `❯` icon, the text and its submission status at the right edge: an animated `◴◷◶◵` clock while the prompt is queued behind a running turn, then `✓` once the engine hands it to Claude (at its next request, mid-turn included). A prompt pushed in early with ctrl+x ctrl+s reads queued until that request.
 - Adds one system-prompt section asking Claude to write `» <intent>` (a 2–6-word present-participle phrase) before each tool call; that line is drawn as a bold heading above the calls.
 - Spacing: one blank row above every call, group and intent, as Claude Code spaces the rows it draws itself.
 - Left to Claude Code's own drawing: `AskUserQuestion` (see turn-questions) and `Agent` rows.
@@ -68,17 +68,18 @@ It opens by itself once a subagent, todo or changed file exists, closes when non
 
 ### context-bar
 
-oh-my-pi's bar in the row under the prompt: the model and effort level, a rule that is the context gauge, the rate-limit windows, and two buttons.
+oh-my-pi's bar in the row under the prompt, across the full width of the window: the model and effort level, a rule that is the context gauge, the rate-limit windows, and three buttons.
 
 ```
 ❯ _
 ───────────────────────────────────────────────────────────────────────────────────
   ⏵⏵ bypass permissions on (shift+tab to cycle)
-  ⟦☰⟧ ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━━━━━ 57% ────────── 1M ─ › 5h 40% · 7d 12% ⟦⊟⟧
+  ⟦☰⟧ ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━━━━━ 57% ────── 1M ─ › 5h 40% · 7d 12% ⟦◨⟧ ⟦⊟⟧
 ```
 
-- The lit share is the context used, its percent set right after it, the window size at the end. It turns yellow, purple and red at oh-my-pi's thresholds (50/70/90%, or 150k/270k/500k tokens, whichever comes first); the rate-limit windows color the same way.
+- The rule fills whatever width the window has and follows it as the window resizes; its lit share is the context used, its percent set right after it, the window size at the end. It turns yellow, purple and red at oh-my-pi's thresholds (50/70/90%, or 150k/270k/500k tokens, whichever comes first); the rate-limit windows color the same way.
 - `⟦☰⟧` runs `/background`: the session keeps running and the terminal shows the agents list, as `←` at an empty prompt does.
+- `⟦◨⟧` shows or hides the session sidebar, as `/sidebar` does (needs session-sidebar).
 - `⟦⊟⟧` compacts the conversation, as `/compact` does; it rests while Claude is working.
 - Model and effort come from each model request; before the first, the model is the session's and effort is `effortLevel` from settings. `/model` and `/effort` refresh them.
 
