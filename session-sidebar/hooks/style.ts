@@ -2,13 +2,13 @@ import type { AgentStatus } from 'claude-code'
 
 type Mark = { glyph: string; color: string }
 
-// Claude Code's own theme colors (its pastel palette by default); oh-my-pi's glyphs (theme/symbols.ts).
+// oh-my-pi's dark palette and glyphs (tui/src/theme/dark.json, theme/symbols.ts).
 export const C = {
-  accent: 'claude',
-  success: 'success',
-  error: 'error',
-  muted: 'inactive',
-  dim: 'subtle',
+  accent: '#febc38',
+  success: '#89d281',
+  error: '#fc3a4b',
+  muted: '#777d88',
+  dim: '#5f6673',
 }
 
 export const SPINNER = '⣾⣽⣻⢿⡿⣟⣯⣷'

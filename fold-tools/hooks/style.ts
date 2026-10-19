@@ -1,14 +1,12 @@
-// Claude Code's own theme colors, so cards follow the person's theme (its pastel palette by default).
+// oh-my-pi's dark palette (tui/src/theme/dark.json).
 export const C = {
-  accent: 'claude',
-  success: 'success',
-  error: 'error',
-  warning: 'warning',
-  muted: 'inactive',
-  dim: 'subtle',
-  frame: 'promptBorder',
-  bash: 'bashBorder',
-  info: 'suggestion',
+  accent: '#febc38',
+  success: '#89d281',
+  error: '#fc3a4b',
+  warning: '#e4c00f',
+  muted: '#777d88',
+  dim: '#5f6673',
+  user: '#178fb9',
 }
 
 export const G = { success: '✔', error: '✘', pending: '⏳', aborted: '⏹', bullet: '•', branch: '├─', last: '└─' }
@@ -18,7 +16,7 @@ export type Tone = 'pending' | 'success' | 'error'
 
 export const toneOf = (s: Status): Tone => (s.isRunning ? 'pending' : s.isErrored || s.isInterrupted ? 'error' : 'success')
 
-export const FRAME: Record<Tone, string> = { pending: C.accent, success: C.frame, error: C.error }
+export const FRAME: Record<Tone, string> = { pending: C.accent, success: C.dim, error: C.error }
 
 // A finished call shows its tool's own icon, as oh-my-pi does; the rest show their state.
 export const iconOf = (s: Status, icon: { glyph: string; color: string }) =>

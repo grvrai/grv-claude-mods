@@ -1,6 +1,6 @@
 # grv-claude-mods
 
-Claude Code mods (function-hook plugins) that redraw the terminal UI in the style of [oh-my-pi](https://github.com/can1357/oh-my-pi), in Claude Code's own theme colors.
+Claude Code mods (function-hook plugins) that redraw the terminal UI in the style and dark palette of [oh-my-pi](https://github.com/can1357/oh-my-pi).
 
 Built against Claude Code 2.1.303. The mod API is early access and may change between releases.
 
@@ -34,9 +34,9 @@ Unfolded, its body sits inside the frame:
 ```
 
 - Click a card's title or its `⟦expand⟧` to unfold it. An unfolded card shows up to 10 lines of shell output (its tail), 40 diff lines or 12 lines of code or text; `⟦show all⟧` lifts the cap and `⟦collapse⟧` folds it back. `/fold open|close` opens or closes every card.
-- Each tool's name and icon take its own Claude theme color (Bash pink, Edit orange, Read and searches lavender); a failed call's frame turns red, a running one's orange.
+- Tool names are oh-my-pi's amber; frames are dim gray, orange while a call runs and red when it failed.
 - Diffs use oh-my-pi's gutter (`-113│`), whole-line color and inverted changed words. Grep and Glob hang matches on `├─`/`└─` branches; a group of several calls is one frame with a branch per call, each unfolding inside it.
-- Your own prompts sit in a rounded frame of Claude's orange, apart from the gray tool cards.
+- Your own prompts sit in a rounded blue frame, apart from the gray tool cards.
 - Adds one system-prompt section asking Claude to write `» <intent>` (a 2–6-word present-participle phrase) before each tool call; that line is drawn as a bold heading above the cards.
 - Spacing: one blank row above every card, group and intent, as Claude Code spaces the rows it draws itself.
 - Left to Claude Code's own drawing: `AskUserQuestion` (see turn-questions) and `Agent` rows.
@@ -87,7 +87,7 @@ oh-my-pi's bar in the row under the prompt: the model and effort level, a rule t
 ## Requirements
 
 - Clicking cards and sidebar rows needs a terminal that reports the mouse, which is the fullscreen TUI (`"tui": "fullscreen"`).
-- Colors are Claude Code's theme colors (`claude`, `suggestion`, `permission`, `success`, `error`, …), so they follow whichever theme you pick in `/config`.
+- Colors are oh-my-pi's dark palette (amber accent, cyan-blue gauge, blue frames), tuned for dark terminal themes.
 
 ## Install
 

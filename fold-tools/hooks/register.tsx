@@ -77,7 +77,7 @@ const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold) => {
       els,
       <Button key={`fold-${id}`} plain onPress={fold.toggle}>
         <Text color={icon.color}>{icon.glyph} </Text>
-        <Text bold color={card.tint}>
+        <Text bold color={C.accent}>
           {card.title}
         </Text>
         <Text color={C.dim}>{card.target ? ': ' : ''}</Text>
@@ -353,12 +353,12 @@ export const register: Register = on => {
     )
   })
 
-  // The person's own prompts in a frame of Claude's color, apart from the gray of the tool cards.
+  // The person's own prompts in a blue frame, apart from the gray of the tool cards.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.props.origin.kind !== 'composer') return next(e)
     const { Box, Text } = $.ui.resolve(e)
     return (
-      <Box borderStyle="round" borderColor={C.accent} paddingX={1}>
+      <Box borderStyle="round" borderColor={C.user} paddingX={1}>
         <Text>{e.props.text}</Text>
       </Box>
     )

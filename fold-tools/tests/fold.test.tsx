@@ -150,9 +150,6 @@ test('the intent instruction is appended to the system prompt once', async ($, o
 test('cards and diff rows summarise each tool', () => {
   const ok = cardOf('Bash', { command: 'ls -la\necho', description: 'List files' }, { stdout: 'a\nb\nc', stderr: '', interrupted: false }, '/repo')
   expect(ok.target).toBe('List files')
-  expect(ok.tint).toBe('bashBorder')
-  expect(cardOf('Edit', { file_path: '/repo/a.py' }, {}, '/repo').tint).toBe('claude')
-  expect(cardOf('mcp__srv__do', { q: 'x' }, {}, '/repo').tint).toBe('claude')
   expect(ok.meta).toEqual(['3 lines'])
   const failed = cardOf('Bash', { command: 'false' }, 'Exit code 1', '/repo')
   expect(failed.body).toMatchObject({ kind: 'shell', command: 'false', output: ['Exit code 1'], isError: true })
