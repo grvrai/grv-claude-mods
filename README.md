@@ -1,6 +1,6 @@
 # grv-claude-mods
 
-Four small mods that make Claude Code's terminal easier to read, in the look and dark palette of [oh-my-pi](https://github.com/can1357/oh-my-pi).
+Five small mods that make Claude Code's terminal easier to read, in the look and dark palette of [oh-my-pi](https://github.com/can1357/oh-my-pi).
 
 ```
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -24,6 +24,7 @@ Four small mods that make Claude Code's terminal easier to read, in the look and
 | **fold-tools** | Every tool call is one tidy line; click it, or the `▸` its icon turns into when you point at it, to see the output or diff. Claude writes a short `» intent` above its calls. Your messages and Claude's are framed and timestamped, and your prompt shows `◴` while queued, `✓` once sent. |
 | **turn-questions** | Every question Claude asked in a turn, collected in one framed list above the prompt, so none get lost. |
 | **session-sidebar** | A sidebar with subagents, todos and changed files. It appears only when there is something to show; `/sidebar` toggles it. |
+| **agent-sidebar** | An `Agents` tab beside the sidebar listing every background agent on your machine, grouped like Claude Code's agent view (working, needs input, done), with age and folder. Click one to open the agent view; `/fleet` toggles it. |
 | **context-bar** | A bar under the prompt: model, effort, a context gauge with percent and tokens, rate limits, plus buttons for the agents list `⟦☰⟧`, the sidebar `⟦◨⟧` and compact `⟦⊟⟧`. |
 
 Handy: `/fold open` / `/fold close` unfolds or folds every tool call at once.
@@ -36,10 +37,11 @@ Copy this prompt and paste it into Claude Code:
 Install the Claude Code mods from https://github.com/grvrai/grv-claude-mods for me:
 
 1. Add the marketplace: claude plugin marketplace add grvrai/grv-claude-mods
-2. Install all four mods (user scope):
+2. Install all five mods (user scope):
    claude plugin install fold-tools@grv-claude-mods
    claude plugin install turn-questions@grv-claude-mods
    claude plugin install session-sidebar@grv-claude-mods
+   claude plugin install agent-sidebar@grv-claude-mods
    claude plugin install context-bar@grv-claude-mods
 3. Clicking cards needs the fullscreen terminal UI. Check ~/.claude/settings.json for "tui": "fullscreen" and, if it is missing, ask me before adding it.
 4. context-bar shows context and rate limits under the prompt. If I already have a "statusLine" in my settings, ask me whether to keep it.
@@ -51,7 +53,7 @@ Or by hand, in a shell:
 
 ```sh
 claude plugin marketplace add grvrai/grv-claude-mods
-for m in fold-tools turn-questions session-sidebar context-bar; do claude plugin install $m@grv-claude-mods; done
+for m in fold-tools turn-questions session-sidebar agent-sidebar context-bar; do claude plugin install $m@grv-claude-mods; done
 ```
 
 Then run `/reload-plugins` in any open session (new sessions pick the mods up by themselves).
@@ -60,7 +62,7 @@ Then run `/reload-plugins` in any open session (new sessions pick the mods up by
 
 ```sh
 claude plugin marketplace update grv-claude-mods
-for m in fold-tools turn-questions session-sidebar context-bar; do claude plugin update $m@grv-claude-mods; done
+for m in fold-tools turn-questions session-sidebar agent-sidebar context-bar; do claude plugin update $m@grv-claude-mods; done
 ```
 
 Then `/reload-plugins` again.

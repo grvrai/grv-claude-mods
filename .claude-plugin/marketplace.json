@@ -3,7 +3,7 @@
   "owner": {
     "name": "grvrai"
   },
-  "description": "Claude Code mods in the style of oh-my-pi: tool cards, question frames, a session sidebar and a context bar",
+  "description": "Claude Code mods in the style of oh-my-pi: tool cards, question frames, a session sidebar, an agents sidebar and a context bar",
   "plugins": [
     {
       "name": "fold-tools",
@@ -24,6 +24,11 @@
       "name": "context-bar",
       "source": "./context-bar",
       "description": "oh-my-pi style bar under the prompt: model, effort, a context-usage gauge, rate limits, and agents and compact buttons"
+    },
+    {
+      "name": "agent-sidebar",
+      "source": "./agent-sidebar",
+      "description": "A docked Agents tab listing every background agent by state, like Claude Code's agent view"
     }
   ]
 }
