@@ -7,7 +7,7 @@ export type Hunk = BuiltinToolResults['Edit']['structuredPatch'][number]
 export type Body =
   | { kind: 'diff'; hunks: Hunk[] }
   | { kind: 'code'; source: string; path: string; startLine: number }
-  | { kind: 'shell'; command: string; output: string[] }
+  | { kind: 'shell'; command: string; output: string[]; isError?: boolean }
   | { kind: 'tree'; items: string[] }
   | { kind: 'text'; lines: string[]; isError?: boolean }
 
@@ -45,9 +45,10 @@ const num = (v: unknown) => (typeof v === 'number' ? v : 0)
 
 export const linesOf = (text: string) => (text.trim() ? text.replace(/\s+$/, '').split('\n') : [])
 
-export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : /(ch|sh|s|x)$/.test(word) ? 'es' : 's'}`
 
-export const relPath = (path: string, cwd: string) => (cwd && path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : path)
+export const relPath = (path: string, cwd: string, home = '') =>
+  cwd && path.startsWith(`${cwd}/`) ? path.slice(cwd.length + 1) : home && path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path
 
 // Cuts to `room` columns, from the start for paths so the file name stays.
 export const clip = (text: string, room: number, keepEnd = false) =>
@@ -104,10 +105,10 @@ export const diffRows = (hunks: Hunk[]): DiffRow[] => {
   return markPairs(rows)
 }
 
-export const cardOf = (tool: string, input: unknown, output: unknown, cwd: string): Card => {
+export const cardOf = (tool: string, input: unknown, output: unknown, cwd: string, home = ''): Card => {
   const i = obj(input)
   const o = obj(output)
-  const rel = (p: unknown) => relPath(str(p), cwd)
+  const rel = (p: unknown) => relPath(str(p), cwd, home)
   const hunks = (Array.isArray(o.structuredPatch) ? o.structuredPatch : []) as Hunk[]
   const icon = ICONS[tool] ?? DONE
   const card = ((): Card => {
@@ -132,7 +133,7 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
           isPath: true,
           badge: isNew ? { add: linesOf(content).length, del: 0 } : stats(hunks),
           meta: [],
-          body: isNew ? { kind: 'code', source: content, path: str(i.file_path), startLine: 1 } : hunks.length ? { kind: 'diff', hunks } : undefined,
+          body: isNew ? { kind: 'code', source: linesOf(content).join('\n'), path: str(i.file_path), startLine: 1 } : hunks.length ? { kind: 'diff', hunks } : undefined,
         }
       }
       case 'Read': {
@@ -147,7 +148,7 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
           target: `${rel(i.file_path)}${isText && shown < total ? `:${from}-${from + shown - 1}` : ''}`,
           isPath: true,
           meta: isText ? [plural(total || shown, 'line')] : o.type ? [str(o.type)] : [],
-          body: isText ? { kind: 'code', source: str(f.content), path: str(f.filePath), startLine: from } : undefined,
+          body: isText ? { kind: 'code', source: linesOf(str(f.content)).join('\n'), path: str(f.filePath), startLine: from } : undefined,
         }
       }
       case 'Bash': {
@@ -155,7 +156,7 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
         return {
           title: 'Bash',
           icon,
-          target: str(i.command).split('\n')[0] ?? '',
+          target: str(i.description),
           meta: [
             ...(o.backgroundTaskId ? ['background'] : []),
             ...(o.interrupted ? ['interrupted'] : []),
@@ -200,8 +201,10 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
         return { title: toolName(tool), icon, target: firstText(i), meta: [] }
     }
   })()
-  // An errored call's output is the error text the model read.
-  return typeof output === 'string' ? { ...card, body: { kind: 'text', lines: linesOf(output), isError: true } } : card
+  // An errored call's output is the error text the model read; a shell keeps its `$ command` above it.
+  if (typeof output !== 'string') return card
+  const lines = linesOf(output)
+  return { ...card, body: card.body?.kind === 'shell' ? { ...card.body, output: lines, isError: true } : { kind: 'text', lines, isError: true } }
 }
 
 export const groupSummary = (calls: ReadonlyArray<{ tool: string }>) => {

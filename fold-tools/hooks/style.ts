@@ -22,7 +22,7 @@ export const toneOf = (s: Status): Tone => (s.isRunning ? 'pending' : s.isErrore
 
 export const FRAME: Record<Tone, { border: string; bg: string }> = {
   pending: { border: C.accent, bg: C.bgPending },
-  success: { border: C.borderMuted, bg: C.bgSuccess },
+  success: { border: C.dim, bg: C.bgSuccess },
   error: { border: C.error, bg: C.bgError },
 }
 

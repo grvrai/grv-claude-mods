@@ -1,7 +1,7 @@
 import { atom, memberOf, read, update } from 'claude-code'
 import type { ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
 
-import { cardOf, clip, diffRows, groupSummary } from './cards'
+import { cardOf, diffRows, groupSummary } from './cards'
 import type { Body, Card, DiffRow } from './cards'
 import { C, FRAME, G, iconOf, toneOf } from './style'
 import type { Status, Tone } from './style'
@@ -10,10 +10,10 @@ import type { Status, Tone } from './style'
 const SKIP = new Set(['AskUserQuestion', 'Agent', 'Task'])
 // Tools whose card draws its own body, so the engine's result block is hidden.
 const OWN = new Set(['Edit', 'Write', 'Read', 'Bash', 'Grep', 'Glob', 'WebFetch'])
-const PREVIEW = 12
-const DIFF_PREVIEW = 40
-const SHELL_TAIL = 10
+// Body rows shown folded and unfolded, as oh-my-pi's PREVIEW_LIMITS; ⟦show all⟧ lifts it to FULL.
+const CAPS: Record<Body['kind'], [number, number]> = { diff: [8, 40], code: [3, 12], shell: [3, 10], text: [3, 12], tree: [6, 24] }
 const FULL = 400
+const RULE = '─'.repeat(400)
 const INTENT_LINE = /^\s*»\s+(.+?)\s*$/
 const INTENT = {
   id: 'fold-tools:intent',
@@ -30,69 +30,86 @@ const rows = atom({ plugin: 'fold-tools', key: 'rows' } as const, { gen: -1, isO
 
 type Els = Pick<ElementTable, 'Box' | 'Text' | 'Code' | 'Button'>
 type Fold = Awaited<ReturnType<typeof foldOf>>
+type Row = { node: RenderChildren; height: number }
+type Section = { rows: Row[] } | { divider: string }
+type Shown = { sections: Section[]; hidden: number; total: number; unit: string }
+type Footer = { more: string; label: string; onPress: () => Promise<unknown> } | undefined
 
 let cwd = ''
+let home = ''
 
-// A row follows the last /fold until it is clicked under that same /fold.
-const foldOf = async ($: EngineInterface, e: { requestId: string }) => {
+// A row follows the last /fold (or `fallback`) until it is clicked under that same /fold.
+const foldOf = async ($: EngineInterface, e: { requestId: string }, fallback?: boolean) => {
   const row = memberOf(rows, e)
   const [m, own] = await Promise.all([read($, mode), read($, row)])
-  const isMine = own.gen === m.gen
-  const write = async (change: (isOpen: boolean, isFull: boolean) => { isOpen: boolean; isFull: boolean }) => {
+  const write = async (change: (isOpen: boolean) => { isOpen: boolean; isFull: boolean }) => {
     const now = await read($, mode)
-    await update($, row, r => ({ gen: now.gen, ...change(r.gen === now.gen ? r.isOpen : now.isOpen, !!r.isFull) }))
+    await update($, row, r => ({ gen: now.gen, ...change(r.gen === now.gen ? r.isOpen : (fallback ?? now.isOpen)) }))
   }
   return {
-    isOpen: isMine ? own.isOpen : m.isOpen,
+    isOpen: own.gen === m.gen ? own.isOpen : (fallback ?? m.isOpen),
     isFull: !!own.isFull,
-    toggle: () => write((isOpen, isFull) => ({ isOpen: !isOpen, isFull })),
-    toggleFull: () => write((isOpen, isFull) => ({ isOpen, isFull: !isFull })),
+    toggle: () => write(isOpen => ({ isOpen: !isOpen, isFull: false })),
+    expand: () => write(() => ({ isOpen: true, isFull: false })),
+    showAll: () => write(() => ({ isOpen: true, isFull: true })),
   }
 }
 
-const headerOf = ({ Text }: Els, card: Card, s: Status, columns: number, lead: string) => {
+// Pieces of a one-row layout: fixed ones keep their width, the target truncates, the rule fills what is left.
+const fixed = ({ Box }: Els, node: RenderChildren) => <Box flexShrink={0}>{node}</Box>
+
+const fillOf = ({ Box, Text }: Els, color: string) => (
+  <Box flexGrow={1} width={0} height={1} overflow="hidden">
+    <Text color={color}>{RULE}</Text>
+  </Box>
+)
+
+// oh-my-pi's header: `icon Title: target ⟦+N/-M⟧  meta · meta`; icon and title toggle the card.
+const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold) => {
+  const { Box, Button, Text } = els
   const icon = iconOf(s, card.icon)
   const badge = card.badge && (card.badge.add || card.badge.del) ? card.badge : undefined
   const meta = [...card.meta, ...(s.isInterrupted ? ['interrupted'] : [])]
-  const metaText = meta.length ? `  ${meta.join(' · ')}` : ''
-  const badgeText = badge ? ` ⟦+${badge.add}/-${badge.del}⟧` : ''
-  const room = columns - lead.length - card.title.length - badgeText.length - metaText.length - 6
   return [
-    ...(lead ? [<Text color={C.dim}>{lead}</Text>] : []),
-    <Text color={icon.color}>{icon.glyph} </Text>,
-    <Text color={C.accent}>{card.title}</Text>,
-    ...(card.target ? [<Text color={C.dim}>: </Text>, <Text>{clip(card.target, Math.max(12, room), card.isPath)}</Text>] : []),
-    ...(badge
+    fixed(
+      els,
+      <Button key={`fold-${id}`} plain onPress={fold.toggle}>
+        <Text color={icon.color}>{icon.glyph} </Text>
+        <Text color={C.accent}>{card.title}</Text>
+        <Text color={C.dim}>{card.target ? ': ' : ''}</Text>
+      </Button>,
+    ),
+    ...(card.target
       ? [
-          <Text color={C.dim}> ⟦</Text>,
-          <Text color={C.success}>+{badge.add}</Text>,
-          <Text color={C.dim}>/</Text>,
-          <Text color={C.error}>-{badge.del}</Text>,
-          <Text color={C.dim}>⟧</Text>,
+          <Box flexShrink={1} height={1} overflow="hidden">
+            <Text wrap={card.isPath ? 'truncate-start' : 'truncate-end'}>{card.target}</Text>
+          </Box>,
         ]
       : []),
-    ...(metaText ? [<Text color={C.dim}>{metaText}</Text>] : []),
+    ...(badge || meta.length
+      ? [
+          fixed(
+            els,
+            <Text>
+              {badge && <Text color={C.dim}> ⟦</Text>}
+              {badge && badge.add > 0 && <Text color={C.success}>+{badge.add}</Text>}
+              {badge && badge.add > 0 && badge.del > 0 && <Text color={C.dim}>/</Text>}
+              {badge && badge.del > 0 && <Text color={C.error}>-{badge.del}</Text>}
+              {badge && <Text color={C.dim}>⟧</Text>}
+              {meta.length > 0 && <Text color={C.dim}>  {meta.join(' · ')}</Text>}
+            </Text>,
+          ),
+        ]
+      : []),
   ]
 }
-
-const moreOf = ({ Button, Text }: Els, hidden: number, total: number, cap: number, unit: string, fold: Fold, lead = '') =>
-  total > cap && (
-    <Button key="all" plain onPress={fold.toggleFull}>
-      <Text color={C.dim}>
-        {lead}
-        {hidden > 0 ? `… ${hidden} more ${unit} ` : ''}
-      </Text>
-      <Text color={C.muted}>⟦{fold.isFull ? 'show less' : 'show all'}⟧</Text>
-    </Button>
-  )
 
 const SIGN = { add: '+', del: '-', ctx: ' ', gap: ' ' }
 const TINT = { add: C.success, del: C.error, ctx: C.muted, gap: C.dim }
 
 // oh-my-pi's diff: marker and number gutter, whole-line color, the changed words inverted, indent as dim dots.
-const diffOf = ({ Text }: Els, list: DiffRow[]) => {
-  const width = Math.max(3, String(Math.max(0, ...list.map(r => r.num))).length)
-  return list.map((r, i) => {
+const diffOf = ({ Text }: Els, list: DiffRow[], width: number) =>
+  list.map((r, i) => {
     if (r.kind === 'gap') return <Text color={C.dim}>{' '.repeat(width + 1)}…</Text>
     const prev = list[i - 1]
     const num = prev && prev.kind !== 'gap' && prev.num === r.num ? '' : String(r.num)
@@ -111,102 +128,186 @@ const diffOf = ({ Text }: Els, list: DiffRow[]) => {
       </Text>
     )
   })
-}
 
-const frameOf = ({ Box }: Els, tone: Tone, children: RenderChildren[]) => (
-  <Box flexDirection="column" borderStyle="round" borderColor={FRAME[tone].border} backgroundColor={FRAME[tone].bg} paddingX={1} marginLeft={2}>
-    {children}
-  </Box>
-)
+const linesOf = ({ Text }: Els, lines: string[], color: string): Row[] =>
+  lines.map(line => ({
+    node: (
+      <Text color={color} wrap="truncate-end">
+        {line}
+      </Text>
+    ),
+    height: 1,
+  }))
 
-const bodyOf = (els: Els, body: Body, tone: Tone, fold: Fold, columns: number) => {
+// What a body shows at its fold, in rows one terminal row tall so the rails can match them.
+const shownOf = (els: Els, body: Body, fold: Fold): Shown => {
   const { Box, Text, Code } = els
-  const cap = (preview: number) => (fold.isFull ? FULL : preview)
+  const [folded, open] = CAPS[body.kind]
+  const cap = fold.isFull ? FULL : fold.isOpen ? open : folded
   switch (body.kind) {
     case 'diff': {
       const list = diffRows(body.hunks)
-      const shown = list.slice(0, cap(DIFF_PREVIEW))
-      return frameOf(els, tone, [...diffOf(els, shown), moreOf(els, list.length - shown.length, list.length, DIFF_PREVIEW, 'lines', fold)])
+      const width = Math.max(3, String(Math.max(0, ...list.map(r => r.num))).length)
+      const shown = list.slice(0, cap)
+      const rows = diffOf(els, shown, width).map(node => ({ node, height: 1 }))
+      return { sections: [{ rows }], hidden: list.length - shown.length, total: list.length, unit: 'lines' }
     }
     case 'code': {
       const all = body.source.split('\n')
-      const shown = all.slice(0, cap(PREVIEW))
-      return frameOf(els, tone, [
-        <Code source={shown.join('\n')} path={body.path} startLine={body.startLine} wrap="truncate-end" />,
-        moreOf(els, all.length - shown.length, all.length, PREVIEW, 'lines', fold),
-      ])
+      const shown = all.slice(0, cap)
+      const node = <Code source={shown.join('\n')} path={body.path} startLine={body.startLine} wrap="truncate-end" />
+      return { sections: [{ rows: [{ node, height: shown.length }] }], hidden: all.length - shown.length, total: all.length, unit: 'lines' }
     }
     case 'shell': {
-      const shown = body.output.slice(-cap(SHELL_TAIL))
-      const earlier = body.output.length - shown.length
-      return frameOf(els, tone, [
+      const command = body.command.split('\n').slice(0, 3)
+      const shown = body.output.slice(-cap)
+      const prompt = (
         <Box>
-          <Text color={C.dim}>$ </Text>
-          <Code source={body.command} language="bash" wrap="truncate-end" />
-        </Box>,
-        <Text color={C.dim}>─ Output {'─'.repeat(Math.max(0, columns - 18))}</Text>,
-        moreOf(els, earlier, body.output.length, SHELL_TAIL, 'earlier lines', fold),
-        ...(shown.length
-          ? shown.map(line => (
-              <Text color={C.muted} wrap="truncate-end">
-                {line}
-              </Text>
-            ))
-          : [
-              <Text color={C.dim} italic>
-                no output
-              </Text>,
-            ]),
-      ])
-    }
-    case 'tree': {
-      const shown = body.items.slice(0, cap(PREVIEW))
-      const hidden = body.items.length - shown.length
-      const more = moreOf(els, hidden, body.items.length, PREVIEW, 'more', fold, `${G.last} `)
-      return (
-        <Box flexDirection="column" marginLeft={2}>
-          {shown.map((item, n) => (
-            <Text wrap="truncate-end">
-              <Text color={C.dim}>{n === shown.length - 1 && !more ? G.last : G.branch} </Text>
-              <Text color={C.muted}>{item}</Text>
-            </Text>
-          ))}
-          {more}
+          {fixed(els, <Text color={C.dim}>$ </Text>)}
+          <Code source={command.join('\n')} language="bash" wrap="truncate-end" />
         </Box>
       )
+      return {
+        sections: [
+          { rows: [{ node: prompt, height: command.length }] },
+          ...(shown.length ? [{ divider: 'Output' }, { rows: linesOf(els, shown, body.isError ? C.error : C.muted) }] : []),
+        ],
+        hidden: body.output.length - shown.length,
+        total: body.output.length,
+        unit: 'earlier lines',
+      }
     }
-    case 'text': {
-      const shown = body.lines.slice(0, cap(PREVIEW))
-      return frameOf(els, body.isError ? 'error' : tone, [
-        ...shown.map(line => (
-          <Text color={body.isError ? C.error : C.muted} wrap="truncate-end">
-            {line}
-          </Text>
-        )),
-        moreOf(els, body.lines.length - shown.length, body.lines.length, PREVIEW, 'lines', fold),
-      ])
+    case 'text':
+    case 'tree': {
+      const all = body.kind === 'text' ? body.lines : body.items
+      const shown = all.slice(0, cap)
+      const color = body.kind === 'text' && body.isError ? C.error : C.muted
+      return { sections: [{ rows: linesOf(els, shown, color) }], hidden: all.length - shown.length, total: all.length, unit: 'lines' }
     }
   }
 }
 
-// One card: a header that stays put when toggled, and the body it unfolds beneath.
-const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, columns: number, lead: string, hasEngineBody: boolean) => {
+// The control oh-my-pi puts at a body's end: what is cut and how to see it.
+const footerOf = (shown: Shown, body: Body, fold: Fold): Footer => {
+  const more = shown.hidden > 0 ? `… ${shown.hidden} more ${shown.unit} ` : ''
+  if (!fold.isOpen && shown.hidden > 0) return { more, label: 'expand', onPress: fold.expand }
+  if (fold.isOpen && shown.hidden > 0) return { more, label: 'show all', onPress: fold.showAll }
+  if (fold.isOpen && shown.total > CAPS[body.kind][0]) return { more, label: 'collapse', onPress: fold.toggle }
+  return undefined
+}
+
+// oh-my-pi's output block: the header set into the top rule, rails, labelled dividers, the footer in the bottom rule.
+const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], shown: Shown, footer: Footer) => {
   const { Box, Button, Text } = els
+  const { border, bg } = FRAME[tone]
+  const edge = (text: string) => fixed(els, <Text color={border}>{text}</Text>)
+  const rule = (left: RenderChildren[], right: string) => (
+    <Box height={1}>
+      {left}
+      {fillOf(els, border)}
+      {edge(right)}
+    </Box>
+  )
+  return (
+    <Box flexDirection="column" backgroundColor={bg}>
+      {rule(head.length ? [edge('╭─── '), ...head, edge(' ')] : [edge('╭')], '╮')}
+      {shown.sections.map(section => {
+        if ('divider' in section) return rule([edge('├─── '), fixed(els, <Text color={C.muted}>{section.divider} </Text>)], '┤')
+        const height = section.rows.reduce((n, r) => n + r.height, 0)
+        const rail = Array.from({ length: height }, () => '│').join('\n')
+        return (
+          <Box>
+            {edge(rail)}
+            <Box flexDirection="column" flexGrow={1} width={0} paddingX={1} overflow="hidden">
+              {section.rows.map(r => r.node)}
+            </Box>
+            {edge(rail)}
+          </Box>
+        )
+      })}
+      {rule(
+        [
+          edge('╰───'),
+          ...(footer
+            ? [
+                fixed(
+                  els,
+                  <Button key={`more-${id}`} plain onPress={footer.onPress}>
+                    <Text color={C.dim}> {footer.more}</Text>
+                    <Text color={C.muted}>⟦{footer.label}⟧ </Text>
+                  </Button>,
+                ),
+              ]
+            : []),
+        ],
+        '╯',
+      )}
+    </Box>
+  )
+}
+
+// Grep and Glob hang their matches on branches instead of a frame.
+const branchesOf = (els: Els, id: string, shown: Shown, footer: Footer) => {
+  const { Box, Button, Text } = els
+  const list = shown.sections.flatMap(s => ('rows' in s ? s.rows : []))
+  return (
+    <Box flexDirection="column" marginLeft={2}>
+      {list.map((r, n) => (
+        <Box height={1}>
+          {fixed(els, <Text color={C.dim}>{n === list.length - 1 && !footer ? G.last : G.branch} </Text>)}
+          {r.node}
+        </Box>
+      ))}
+      {footer && (
+        <Button key={`more-${id}`} plain onPress={footer.onPress}>
+          <Text color={C.dim}>
+            {G.last} {footer.more}
+          </Text>
+          <Text color={C.muted}>⟦{footer.label}⟧</Text>
+        </Button>
+      )}
+    </Box>
+  )
+}
+
+// Framed even when folded, as oh-my-pi frames these blocks; Read frames once opened, Grep and Glob never.
+const isFramed = (card: Card, s: Status, isOpen: boolean) => {
+  const kind = card.body?.kind
+  return kind === 'shell' || (!s.isRunning && (kind === 'diff' || kind === 'text' || (kind === 'code' && (isOpen || card.title === 'Create'))))
+}
+
+// One card: its header stays on its row when toggled; the body unfolds beneath or inside its frame.
+const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, lead: string, hasEngineBody: boolean) => {
+  const { Box, Text } = els
   const fold = await foldOf($, { requestId: id })
+  const head = headerOf(els, id, card, s, fold)
+  const tone = toneOf(s)
+  if (!lead && card.body && isFramed(card, s, fold.isOpen)) {
+    const shown = shownOf(els, card.body, fold)
+    return frameOf(els, id, tone, head, shown, footerOf(shown, card.body, fold))
+  }
   const canOpen = !s.isRunning && (card.body !== undefined || hasEngineBody)
+  // Branches show folded too (capped), as oh-my-pi lists a search's first matches.
+  const body = canOpen && (fold.isOpen || card.body?.kind === 'tree') ? card.body : undefined
+  const shown = body && shownOf(els, body, fold)
   return (
     <Box flexDirection="column">
-      <Box key={`row-${id}`}>
-        <Button key={`fold-${id}`} plain onPress={fold.toggle}>
-          {headerOf(els, card, s, columns, lead)}
-        </Button>
+      <Box key={`row-${id}`} height={1}>
+        {lead && fixed(els, <Text color={C.dim}>{lead}</Text>)}
+        {head}
         {canOpen && (
-          <Box display="none" hover={{ display: 'flex' }}>
+          <Box flexShrink={0} display="none" hover={{ display: 'flex' }}>
             <Text color={C.dim}>  ⟦{fold.isOpen ? 'collapse' : 'expand'}⟧</Text>
           </Box>
         )}
       </Box>
-      {canOpen && fold.isOpen && card.body && bodyOf(els, card.body, toneOf(s), fold, columns)}
+      {body &&
+        shown &&
+        (body.kind === 'tree' ? (
+          branchesOf(els, id, shown, footerOf(shown, body, fold))
+        ) : (
+          <Box marginLeft={lead ? 3 : 0}>{frameOf(els, id, tone, [], shown, footerOf(shown, body, fold))}</Box>
+        ))}
     </Box>
   )
 }
@@ -214,6 +315,7 @@ const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: St
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     cwd = await $.session.cwd()
+    home = (await $.env.get('HOME')) ?? ''
     await $.command.register({
       name: 'fold',
       description: 'Open or close every tool card',
@@ -244,10 +346,12 @@ export const register: Register = on => {
     const { Box, Text } = $.ui.resolve(e)
     const rest = lines.filter(line => !INTENT_LINE.test(line)).join('\n').trim()
     const heads = intents.map(text => (
-      <Text>
-        <Text color={C.accent}>» </Text>
-        <Text bold>{text}</Text>
-      </Text>
+      <Box marginTop={1}>
+        <Text>
+          <Text color={C.accent}>» </Text>
+          <Text bold>{text}</Text>
+        </Text>
+      </Box>
     ))
     if (!rest) return <Box flexDirection="column">{heads}</Box>
     const engine = await next({ ...e, props: { ...e.props, text: rest } })
@@ -263,8 +367,7 @@ export const register: Register = on => {
     const { tool, input, output } = e.props
     if (SKIP.has(tool)) return next(e)
     const els = $.ui.resolve(e)
-    const card = cardOf(tool, input, output, cwd)
-    return rowOf($, els, e.requestId, card, e.props, e.viewport?.columns ?? 100, '', !OWN.has(tool))
+    return rowOf($, els, e.requestId, cardOf(tool, input, output, cwd, home), e.props, '', !OWN.has(tool))
   })
 
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
@@ -280,8 +383,9 @@ export const register: Register = on => {
     const els = $.ui.resolve(e)
     const { Box, Button, Text } = els
     const { calls } = e.props
-    const columns = e.viewport?.columns ?? 100
-    const fold = await foldOf($, e)
+    const only = calls.length === 1 ? calls[0] : undefined
+    if (only) return rowOf($, els, only.tool_use_id ?? e.requestId, cardOf(only.tool, only.input, only.output, cwd, home), only, '', false)
+    const fold = await foldOf($, e, true)
     const icon = iconOf(
       {
         isRunning: calls.some(c => c.isRunning),
@@ -291,12 +395,12 @@ export const register: Register = on => {
       { glyph: G.bullet, color: C.success },
     )
     const head = (
-      <Box key="row-group">
+      <Box key="row-group" height={1}>
         <Button key="fold-group" plain onPress={fold.toggle}>
           <Text color={icon.color}>{icon.glyph} </Text>
           <Text>{groupSummary(calls)}</Text>
         </Button>
-        <Box display="none" hover={{ display: 'flex' }}>
+        <Box flexShrink={0} display="none" hover={{ display: 'flex' }}>
           <Text color={C.dim}>  ⟦{fold.isOpen ? 'collapse' : 'expand'}⟧</Text>
         </Box>
       </Box>
@@ -308,9 +412,8 @@ export const register: Register = on => {
           $,
           els,
           c.tool_use_id ?? `${e.requestId}-${n}`,
-          cardOf(c.tool, c.input, c.output, cwd),
+          cardOf(c.tool, c.input, c.output, cwd, home),
           c,
-          columns - 2,
           `${n === calls.length - 1 ? G.last : G.branch} `,
           false,
         ),

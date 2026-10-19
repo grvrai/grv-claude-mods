@@ -6,6 +6,8 @@ import { C, clip, DONE, duration, MARKS, relPath, SPINNER, statsOf, statText } f
 
 const PANE = 'session'
 const POLL_MS = 2000
+// Thin by default; a width the person drags the dock to wins.
+const COLUMNS = 34
 
 const subagents = atom({ plugin: 'session-sidebar', key: 'subagents' } as const, [])
 const todos = atom({ plugin: 'session-sidebar', key: 'todos' } as const, [])
@@ -199,7 +201,7 @@ export const register: Register = on => {
   on('command.run', { command: 'sidebar' }, async $ => {
     const isOpen = (await $.ui.panes()).some(p => p.id === PANE)
     if (isOpen) await $.ui.close({ id: PANE })
-    else await $.ui.open({ id: PANE, title: 'Session' })
+    else await $.ui.open({ id: PANE, title: 'Session', columns: COLUMNS })
     return { text: `Sidebar ${isOpen ? 'hidden' : 'shown'}.` }
   })
 
@@ -249,7 +251,7 @@ export const register: Register = on => {
     const ran = await next(e)
     if ('result' in ran && !ran.isError && ran.result) {
       const isNew = ran.result.type === 'create'
-      const { add, del } = isNew ? { add: e.content.split('\n').length, del: 0 } : statsOf(ran.result.structuredPatch)
+      const { add, del } = isNew ? { add: e.content.replace(/\s+$/, '').split('\n').length, del: 0 } : statsOf(ran.result.structuredPatch)
       await touch($, ran.result.filePath, isNew ? 'A' : 'M', add, del)
     }
     return ran
@@ -273,7 +275,7 @@ export const register: Register = on => {
   on('ui.render', { component: 'AbovePrompt' }, ($, e, next) => {
     if (!isAutoOpened && e.viewport?.isFullscreen === true) {
       isAutoOpened = true
-      void $.ui.open({ id: PANE, title: 'Session' })
+      void $.ui.open({ id: PANE, title: 'Session', columns: COLUMNS })
     }
     return next(e)
   })
