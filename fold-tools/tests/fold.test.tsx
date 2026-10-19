@@ -172,7 +172,7 @@ test('cards and diff rows summarise each tool', () => {
   expect(groupSummary([{ tool: 'Read' }, { tool: 'Read' }, { tool: 'Grep' }])).toBe('Read 2 files · searched 1 pattern')
 })
 
-test('cards, intents and framed messages keep one blank row above them', async ($, on) => {
+test('cards, intents and framed messages (summaries too) keep one blank row above them', async ($, on) => {
   on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>{e.props.text}</Text>
@@ -183,6 +183,10 @@ test('cards, intents and framed messages keep one blank row above them', async (
   const reply = (await plain.findAll({ type: 'Text' })).map(t => t.text)
   expect(reply).toEqual(expect.arrayContaining(['┏', '⏺', '┗']))
   await plain.unmount()
+  const summary = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', props: { text: 'Checked the config.', isFirstOfReply: true, isSummary: true } })
+  expect((await summary.findAll({ type: 'Text' })).map(t => t.text)).toEqual(expect.arrayContaining(['┏', '⏺', '┗']))
+  expect((await summary.findAll({ type: 'Markdown' })).map(m => m.props.text)).toEqual(['Checked the config.'])
+  await summary.unmount()
   const intent = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', props: { text: '» Reading notes', isFirstOfReply: false } })
   expect(await intent.drawn()).toMatchObject({ type: 'Box', props: { marginTop: 1 } })
   await intent.unmount()

@@ -426,9 +426,8 @@ export const register: Register = on => {
     return { sections: [...sections.filter(s => s.id !== INTENT.id), INTENT] }
   })
 
-  // Claude's text in a dim frame, the reply's bullet on its rail, drawn as a reply is (an engine node may not sit in a sized Box); » lines come out of it as the intent headings of the calls below.
+  // Claude's text, or the engine's summary of it, in a dim frame, the reply's bullet on its rail, drawn as a reply is (an engine node may not sit in a sized Box); » lines come out of it as the intent headings of the calls below.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (e.props.isSummary) return next(e)
     const lines = e.props.text.split('\n')
     const intents = lines.flatMap(line => INTENT_LINE.exec(line)?.[1] ?? [])
     const els = $.ui.resolve(e)
