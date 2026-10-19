@@ -53,7 +53,18 @@ Click a card's icon and title to unfold it into oh-my-pi's output block:
 
 ### session-sidebar
 
-A docked pane (`Session`) that appears only while it has something to show, with a section for each kind present:
+A docked pane (`Session`) that appears only while it has something to show: one rounded card around its content, each section's label set into the card's rules.
+
+```
+╭─ TODOS · 1/2 ─────────────────╮
+│ ✔ Build the bar               │
+│ ○ Style the sidebar           │
+├─ FILES · 1 changed ───────────┤
+│ A out.txt               +6 -1 │
+╰───────────────────────────────╯
+```
+
+Sections:
 
 - **SUBAGENTS**: each subagent's type, task, status and run time. Click one to show its transcript; `← back to main` returns.
 - **TODOS**: live from `TaskCreate`/`TaskUpdate`/`TodoWrite`, seeded from `TaskList` on the first turn.
@@ -63,15 +74,23 @@ It opens by itself once a subagent, todo or changed file exists, closes when non
 
 ### context-bar
 
-oh-my-pi's composer border as a band above the prompt: the model and effort level, then a rule that is the context gauge.
+oh-my-pi's bar as Claude Code's status line, the row right under the prompt: the model and effort level, a rule that is the context gauge, and the rate-limit windows.
 
 ```
-⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━━━━━━━ 38% ───────────────────────────── 1M ─
+❯ _
+───────────────────────────────────────────────────────────────────────────────────
+  ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━━━━━━━━━━━━━ 57% ───────────────── 1M ─ › 5h 40% · 7d 12%
 ```
 
-- The lit share is the context used, its percent set right after it, the window size at the end. It turns yellow, purple and red at oh-my-pi's thresholds (50/70/90%, or 150k/270k/500k tokens, whichever comes first).
-- Model and effort come from each model request; before the first, the model is the session's and effort is `effortLevel` from settings. `/model` and `/effort` refresh them.
-- Other mods' band rows (turn-questions) stack above it, so it stays nearest the prompt.
+- The lit share is the context used, its percent set right after it, the window size at the end. It turns yellow, purple and red at oh-my-pi's thresholds (50/70/90%, or 150k/270k/500k tokens, whichever comes first). The rate-limit windows color the same way.
+- Model, effort and the figures come from the JSON Claude Code hands a status line command; the bar fills the terminal's width.
+- It is a status line command, so it needs one setting. After installing the plugin, set in `~/.claude/settings.json`:
+
+  ```json
+  "statusLine": { "type": "command", "command": "node ~/.claude/plugins/marketplaces/grv-claude-mods/context-bar/statusline.ts" }
+  ```
+
+  It runs on Node 22.18 or newer (TypeScript runs as is). Until it is set, the plugin says so in a toast when a session starts.
 
 ## Requirements
 

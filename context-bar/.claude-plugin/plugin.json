@@ -1,7 +1,6 @@
 {
   "name": "context-bar",
-  "version": "0.1.0",
-  "description": "oh-my-pi style status band above the prompt: model, effort and a context-usage gauge",
-  "author": { "name": "grvrai" },
-  "types": "./types/index.d.ts"
+  "version": "0.2.0",
+  "description": "oh-my-pi style status line under the prompt: model, effort, a context-usage gauge and rate limits",
+  "author": { "name": "grvrai" }
 }

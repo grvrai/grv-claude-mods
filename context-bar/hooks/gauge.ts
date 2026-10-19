@@ -1,4 +1,14 @@
-import type { Usage } from '../types'
+// The live context window: its size, and its fill once a response reported one.
+export type Usage = { tokens?: number; window: number; percent?: number }
+
+// What Claude Code hands a status line command on stdin, the fields the bar reads.
+export type StatusInput = {
+  model?: { id?: string; display_name?: string }
+  effort?: { level?: string }
+  fast_mode?: boolean
+  context_window?: { context_window_size?: number; used_percentage?: number; total_input_tokens?: number }
+  rate_limits?: Record<string, { used_percentage?: number } | undefined>
+}
 
 // oh-my-pi's dark theme (tui/src/theme/dark.json) and unicode symbols (theme/symbols.ts).
 export const C = {
@@ -11,7 +21,12 @@ export const C = {
   dim: '#5f6673',
   sep: '#808080',
 }
-export const ICON = { model: '⬢', context: '◫' }
+export const ICON = { model: '⬢', context: '◫', fast: '⚡' }
+// Claude Code sets the status line two columns in and cuts it a few columns short of the edge.
+const STATUS_INDENT = 2
+const STATUS_MARGIN = 4
+const MIN_GAUGE = 12
+const SEP = ' › '
 
 const EFFORT: Record<string, string> = {
   minimal: '○ min',
@@ -30,6 +45,17 @@ const LEVELS: [number, number, string][] = [
 ]
 
 export type Run = { text: string; color: string }
+
+const LIMIT_NAMES: Record<string, string> = { five_hour: '5h', seven_day: '7d', spend_limit: '$' }
+
+// The rate-limit windows as `5h 40%`, colored as they fill.
+export const limitRuns = (limits: ReadonlyArray<{ kind: string; percentUsed: number }>): Run[] =>
+  limits
+    .filter(l => LIMIT_NAMES[l.kind])
+    .map(l => ({
+      text: `${LIMIT_NAMES[l.kind]} ${Math.round(l.percentUsed)}%`,
+      color: l.percentUsed >= 90 ? C.error : l.percentUsed >= 70 ? C.purple : l.percentUsed >= 50 ? C.warning : C.context,
+    }))
 
 export const levelColor = (percent: number, window: number) =>
   LEVELS.find(([pct, tokens]) => percent > 0 && percent >= Math.min(pct, window > 0 ? (tokens / window) * 100 : pct))?.[2] ?? C.used
@@ -69,4 +95,29 @@ export const gaugeOf = (width: number, usage: Usage): Run[] => {
     { text: windowLabel, color: C.context },
     { text: '─', color: C.dim },
   ].filter(r => r.text)
+}
+
+// oh-my-pi's bar: model and effort, the context gauge filling the row, the rate-limit windows.
+export const barOf = (input: StatusInput, columns: number): Run[] => {
+  const name = input.model?.display_name || modelName(input.model?.id ?? '') || 'model'
+  const level = input.effort?.level ?? ''
+  const head: Run[] = [
+    { text: `${ICON.model} ${name}${input.fast_mode ? ` ${ICON.fast}` : ''}${level ? ` · ${effortLabel(level)}` : ''}`, color: C.model },
+    { text: SEP, color: C.sep },
+    { text: `${ICON.context} `, color: C.context },
+  ]
+  const windows = Object.entries(input.rate_limits ?? {}).flatMap(([kind, w]) =>
+    w?.used_percentage === undefined ? [] : [{ kind, percentUsed: w.used_percentage }],
+  )
+  const tail = limitRuns(windows).flatMap((r, n): Run[] => [{ text: n ? ' · ' : SEP, color: C.sep }, r])
+  const width = (runs: Run[]) => runs.reduce((n, r) => n + r.text.length, 0)
+  const room = columns - STATUS_INDENT - STATUS_MARGIN - width(head) - width(tail)
+  const ctx = input.context_window
+  if (!ctx?.context_window_size) return [...head, ...tail]
+  const usage = { window: ctx.context_window_size, percent: ctx.used_percentage, tokens: ctx.total_input_tokens }
+  const gauge: Run[] =
+    room >= MIN_GAUGE
+      ? gaugeOf(room, usage)
+      : [{ text: `${usage.percent === undefined ? '?' : `${usage.percent.toFixed(1)}%`}/${formatTokens(usage.window)}`, color: levelColor(usage.percent ?? 0, usage.window) }]
+  return [...head, ...gauge, ...tail]
 }

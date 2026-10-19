@@ -23,7 +23,7 @@
     {
       "name": "context-bar",
       "source": "./context-bar",
-      "description": "oh-my-pi style status band above the prompt: model, effort and a context-usage gauge"
+      "description": "oh-my-pi style status line under the prompt: model, effort, a context-usage gauge and rate limits"
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { atom, read, update } from 'claude-code'
-import type { BuiltinToolResults, ElementTable, EngineInterface, Register } from 'claude-code'
+import type { BuiltinToolResults, ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
 
 import type { Sub, Todo, Touched } from '../types'
 import { C, clip, DONE, duration, MARKS, relPath, SPINNER, statsOf, statText } from './style'
@@ -15,28 +15,66 @@ const files = atom({ plugin: 'session-sidebar', key: 'files' } as const, [])
 const reads = atom({ plugin: 'session-sidebar', key: 'reads' } as const, [])
 
 type Els = Pick<ElementTable, 'Box' | 'Text' | 'Button'>
+type Part = { text: string; color?: string }
+type Section = { label: string; parts: Part[]; rows: RenderChildren[] }
 
-const headOf = ({ Text }: Els, label: string, parts: { text: string; color?: string }[]) => (
-  <Text>
-    <Text bold color={C.muted}>
-      {label}
-    </Text>
-    {parts.map(p => (
-      <Text color={p.color ?? C.dim}>
-        {'  '}
-        {p.text}
-      </Text>
-    ))}
-  </Text>
-)
+const RULE = '─'.repeat(200)
 
-const emptyOf = ({ Text }: Els, text: string) => (
-  <Text color={C.dim} italic>
-    {text}
-  </Text>
-)
+// Pieces of one frame row: fixed glyphs keep their width, the rule fills what is left.
+const fixed = ({ Box }: Els, node: RenderChildren) => <Box flexShrink={0}>{node}</Box>
 
-const subagentsOf = (els: Els, $: EngineInterface, list: Sub[], viewing: string | undefined, width: number) => {
+const ruleOf = (els: Els, left: string, section: Section | undefined, right: string) => {
+  const { Box, Text } = els
+  return (
+    <Box height={1}>
+      {fixed(els, <Text color={C.dim}>{left}</Text>)}
+      {section &&
+        fixed(
+          els,
+          <Text>
+            <Text bold color={C.muted}>
+              {section.label}
+            </Text>
+            {section.parts.map(p => (
+              <Text color={p.color ?? C.dim}> · {p.text}</Text>
+            ))}
+            <Text> </Text>
+          </Text>,
+        )}
+      <Box flexGrow={1} width={0} height={1} overflow="hidden">
+        <Text color={C.dim}>{RULE}</Text>
+      </Box>
+      {fixed(els, <Text color={C.dim}>{right}</Text>)}
+    </Box>
+  )
+}
+
+// One card around whatever there is: each section's label set into the rule above its rows.
+const cardOf = (els: Els, sections: Section[]) => {
+  const { Box, Text } = els
+  return (
+    <Box flexDirection="column">
+      {sections.map((section, n) => {
+        const rail = Array.from({ length: section.rows.length }, () => '│').join('\n')
+        return (
+          <Box flexDirection="column">
+            {ruleOf(els, n ? '├─ ' : '╭─ ', section, n ? '┤' : '╮')}
+            <Box>
+              {fixed(els, <Text color={C.dim}>{rail}</Text>)}
+              <Box flexDirection="column" flexGrow={1} width={0} paddingX={1} overflow="hidden" backgroundColor={C.bgCard}>
+                {section.rows}
+              </Box>
+              {fixed(els, <Text color={C.dim}>{rail}</Text>)}
+            </Box>
+          </Box>
+        )
+      })}
+      {ruleOf(els, '╰', undefined, '╯')}
+    </Box>
+  )
+}
+
+const subagentsOf = (els: Els, $: EngineInterface, list: Sub[], viewing: string | undefined, width: number): Section => {
   const { Box, Button, Text } = els
   const running = list.filter(s => !DONE.has(s.status)).length
   const rows = list.map(s => {
@@ -48,7 +86,7 @@ const subagentsOf = (els: Els, $: EngineInterface, list: Sub[], viewing: string 
     const indent = s.parentId ? '  ' : ''
     const room = width - indent.length - s.type.length - time.length - 4
     return (
-      <Box justifyContent="space-between" backgroundColor={isViewed ? C.bgPending : undefined}>
+      <Box height={1} justifyContent="space-between" backgroundColor={isViewed ? C.bgPending : undefined}>
         <Button key={`agent-${s.id}`} plain onPress={() => $.ui.view({ agentId: s.id })}>
           <Text color={mark.color}>
             {indent}
@@ -59,82 +97,78 @@ const subagentsOf = (els: Els, $: EngineInterface, list: Sub[], viewing: string 
           </Text>
           <Text color={C.muted}> {clip(s.description, room)}</Text>
         </Button>
-        <Text color={isViewed ? C.accent : C.dim}>{time}</Text>
+        {fixed(els, <Text color={isViewed ? C.accent : C.dim}>{time}</Text>)}
       </Box>
     )
   })
-  return (
-    <Box flexDirection="column">
-      {headOf(els, 'SUBAGENTS', [
-        ...(running ? [{ text: `${running} running`, color: C.accent }] : []),
-        ...(list.length - running ? [{ text: `${list.length - running} done` }] : []),
-      ])}
-      {viewing && (
-        <Button key="main" plain onPress={() => $.ui.view({})}>
-          <Text color={C.accent}>← back to main</Text>
-        </Button>
-      )}
-      {rows}
-    </Box>
-  )
+  return {
+    label: 'SUBAGENTS',
+    parts: [
+      ...(running ? [{ text: `${running} running`, color: C.accent }] : []),
+      ...(list.length - running ? [{ text: `${list.length - running} done` }] : []),
+    ],
+    rows: [
+      ...(viewing
+        ? [
+            <Button key="main" plain onPress={() => $.ui.view({})}>
+              <Text color={C.accent}>← back to main</Text>
+            </Button>,
+          ]
+        : []),
+      ...rows,
+    ],
+  }
 }
 
-const todosOf = (els: Els, list: Todo[]) => {
-  const { Box, Text } = els
-  const done = list.filter(t => t.status === 'completed').length
-  return (
-    <Box flexDirection="column">
-      {headOf(els, 'TODOS', [{ text: `${done}/${list.length}` }])}
-      {list.map(t => {
-        const mark = MARKS[t.status]
-        return (
-          <Text wrap="truncate-end">
-            <Text color={mark.color}>{mark.glyph} </Text>
-            <Text bold={t.status === 'in_progress'} color={t.status === 'completed' ? C.dim : undefined}>
-              {t.subject}
-            </Text>
-          </Text>
-        )
-      })}
-    </Box>
-  )
-}
-
-const filesOf = (els: Els, $: EngineInterface, list: Touched[], readCount: number, cwd: string, width: number) => {
-  const { Box, Button, Text } = els
-  const rows = list.map(f => {
-    const stats = statText(f.add, f.del)
-    const path = relPath(f.path, cwd)
+const todosOf = ({ Text }: Els, list: Todo[]): Section => ({
+  label: 'TODOS',
+  parts: [{ text: `${list.filter(t => t.status === 'completed').length}/${list.length}` }],
+  rows: list.map(t => {
+    const mark = MARKS[t.status]
     return (
-      <Box justifyContent="space-between">
-        <Button
-          key={`file-${f.path}`}
-          plain
-          onPress={async press => {
-            const { isCopied } = await $.ui.copy({ text: path, surface: press.surface })
-            if (isCopied) $.ui.toast(`Copied ${path}`)
-          }}
-        >
-          <Text color={f.kind === 'A' ? C.success : C.accent}>{f.kind} </Text>
-          <Text>{clip(path, width - stats.length - 3, true)}</Text>
-        </Button>
-        <Text>
-          {f.add > 0 && <Text color={C.success}>+{f.add}</Text>}
-          {f.add > 0 && f.del > 0 && ' '}
-          {f.del > 0 && <Text color={C.error}>-{f.del}</Text>}
+      <Text wrap="truncate-end">
+        <Text color={mark.color}>{mark.glyph} </Text>
+        <Text bold={t.status === 'in_progress'} color={t.status === 'completed' ? C.dim : undefined}>
+          {t.subject}
         </Text>
-      </Box>
+      </Text>
     )
-  })
-  return (
-    <Box flexDirection="column">
-      {headOf(els, 'FILES', [
-        { text: `${list.length} changed` },
-        ...(readCount ? [{ text: `${readCount} read` }] : []),
-      ])}
-      {rows}
-    </Box>
-  )
+  }),
+})
+
+const filesOf = (els: Els, $: EngineInterface, list: Touched[], readCount: number, cwd: string, width: number): Section => {
+  const { Box, Button, Text } = els
+  return {
+    label: 'FILES',
+    parts: [{ text: `${list.length} changed` }, ...(readCount ? [{ text: `${readCount} read` }] : [])],
+    rows: list.map(f => {
+      const stats = statText(f.add, f.del)
+      const path = relPath(f.path, cwd)
+      return (
+        <Box height={1} justifyContent="space-between">
+          <Button
+            key={`file-${f.path}`}
+            plain
+            onPress={async press => {
+              const { isCopied } = await $.ui.copy({ text: path, surface: press.surface })
+              if (isCopied) $.ui.toast(`Copied ${path}`)
+            }}
+          >
+            <Text color={f.kind === 'A' ? C.success : C.accent}>{f.kind} </Text>
+            <Text>{clip(path, width - stats.length - 3, true)}</Text>
+          </Button>
+          {fixed(
+            els,
+            <Text>
+              {f.add > 0 && <Text color={C.success}>+{f.add}</Text>}
+              {f.add > 0 && f.del > 0 && ' '}
+              {f.del > 0 && <Text color={C.error}>-{f.del}</Text>}
+            </Text>,
+          )}
+        </Box>
+      )
+    }),
+  }
 }
 
 let cwd = ''
@@ -315,18 +349,23 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const els = $.ui.resolve(e)
-    const { Box } = els
+    const { Box, Text } = els
     const [subs, list, touched, seen] = await Promise.all([read($, subagents), read($, todos), read($, files), read($, reads)])
-    const width = e.props.bodyColumns
+    // The card's rails and padding take four columns of the pane.
+    const width = e.props.bodyColumns - 4
     const viewing = e.props.view.agentId
     const sections = [
       ...(subs.length || viewing ? [subagentsOf(els, $, subs, viewing, width)] : []),
       ...(list.length ? [todosOf(els, list)] : []),
       ...(touched.length ? [filesOf(els, $, touched, seen.length, cwd, width)] : []),
     ]
-    return (
-      <Box flexDirection="column" gap={1}>
-        {sections.length ? sections : emptyOf(els, 'Subagents, todos and changed files show here.')}
+    return sections.length ? (
+      cardOf(els, sections)
+    ) : (
+      <Box>
+        <Text color={C.dim} italic>
+          Subagents, todos and changed files show here.
+        </Text>
       </Box>
     )
   })
