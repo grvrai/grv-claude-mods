@@ -123,22 +123,38 @@ const foldOf = async ($: EngineInterface, e: { requestId: string }, fallback?: b
 // Pieces of a one-row layout: fixed ones keep their width, the target truncates.
 const fixed = ({ Box }: Els, node: RenderChildren) => <Box flexShrink={0}>{node}</Box>
 
-// oh-my-pi's header: `icon Title: target ⟦+N/-M⟧  meta · meta`; icon and title toggle the card.
-const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame = 0) => {
+// The fold control: the status icon at rest; while the pointer is on the row, a ▸/▾ laid over it, the one cell that presses.
+const toggleOf = (els: Els, key: string, icon: { glyph: string; color: string }, isOpen: boolean, onPress: () => unknown) => {
   const { Box, Button, Text } = els
+  const wide = (icon.glyph.codePointAt(0) ?? 0) >= 0x1f000
+  return (
+    <Box flexShrink={0}>
+      <Text color={icon.color}>{icon.glyph} </Text>
+      <Box position="absolute" top={0} left={0} display="none" hover={{ display: 'flex' }}>
+        <Button key={key} plain onPress={onPress}>
+          <Text color={C.accent}>{`${isOpen ? '▾' : '▸'}${wide ? ' ' : ''}`}</Text>
+        </Button>
+      </Box>
+    </Box>
+  )
+}
+
+// oh-my-pi's header: `icon Title: target ⟦+N/-M⟧  meta · meta`; the icon's cell toggles the card.
+const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame = 0) => {
+  const { Box, Text } = els
   const icon = s.isRunning ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: C.accent } : iconOf(s, card.icon)
   const badge = card.badge && (card.badge.add || card.badge.del) ? card.badge : undefined
   const meta = [...card.meta, ...(s.isInterrupted ? ['interrupted'] : [])]
   return [
+    toggleOf(els, `fold-${id}`, icon, fold.isOpen, fold.toggle),
     fixed(
       els,
-      <Button key={`fold-${id}`} plain onPress={fold.toggle}>
-        <Text color={icon.color}>{icon.glyph} </Text>
+      <Text>
         <Text bold color={C.accent}>
           {card.title}
         </Text>
         <Text color={C.dim}>{card.target ? ': ' : ''}</Text>
-      </Button>,
+      </Text>,
     ),
     ...(card.target
       ? [
@@ -315,7 +331,9 @@ const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: St
   const shown = canOpen && fold.isOpen && card.body ? shownOf(els, card.body, fold) : undefined
   return (
     <Box flexDirection="column">
-      <Box height={1}>{head}</Box>
+      <Box key={`row-${id}`} height={1}>
+        {head}
+      </Box>
       {shown && railOf(els, id, toneOf(s), shown.sections, footerOf(shown, fold))}
     </Box>
   )
@@ -328,7 +346,7 @@ const branchOf = async ($: EngineInterface, els: Els, id: string, card: Card, s:
   const shown = !s.isRunning && fold.isOpen && card.body ? shownOf(els, card.body, fold) : undefined
   return (
     <Box flexDirection="column">
-      <Box height={1}>
+      <Box key={`row-${id}`} height={1}>
         {fixed(els, <Text color={C.dim}>{lead}</Text>)}
         {headerOf(els, id, card, s, fold, await spinOf($, s.isRunning))}
       </Box>
@@ -521,13 +539,11 @@ export const register: Register = on => {
       : []
     return (
       <Box flexDirection="column" marginTop={GAP}>
-        <Box height={1}>
-          <Button key="fold-group" plain onPress={fold.toggle}>
-            <Text color={icon.color}>{icon.glyph} </Text>
-            <Text bold color={C.accent}>
-              {groupSummary(calls)}
-            </Text>
-          </Button>
+        <Box key={`row-${e.requestId}`} height={1}>
+          {toggleOf(els, 'fold-group', icon, fold.isOpen, fold.toggle)}
+          <Text bold color={C.accent}>
+            {groupSummary(calls)}
+          </Text>
         </Box>
         <Box flexDirection="column" paddingLeft={2}>
           {branches}

@@ -44,7 +44,8 @@ test('a folded edit is its title line alone and unfolds into a diff on a rail', 
     }),
   })
   let text = await textOf(ui)
-  expect((await ui.find({ key: 'fold-t1' }))?.text).toBe('✎ Edit: ')
+  expect((await ui.find({ key: 'fold-t1' }))?.text).toBe('▸')
+  expect(await textOf(ui)).toMatch(/✎ [\s\S]*Edit: /)
   expect(text).toContain('/repo/app/views.py')
   expect(text).toContain('+2')
   expect(text).not.toContain('│')
@@ -61,7 +62,8 @@ test('a folded edit is its title line alone and unfolds into a diff on a rail', 
 
 test('a bash card unfolds to its tail, then ⟦show all⟧, then ⟦collapse⟧ back to its title', async $ => {
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...bash('t2') })
-  expect((await ui.find({ key: 'fold-t2' }))?.text).toBe('❯ Bash: ')
+  expect((await ui.find({ key: 'fold-t2' }))?.text).toBe('▸')
+  expect(await textOf(ui)).toMatch(/❯ [\s\S]*Bash: /)
   expect(await textOf(ui)).not.toContain('line 30')
   await ui.press({ key: 'fold-t2' })
   let text = await textOf(ui)
@@ -103,7 +105,8 @@ test('an owned tool hides the engine result block', async $ => {
 
 test('a group of several calls shows its branches until clicked', async $ => {
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...group([read('r1', '/a.py'), read('r2', '/b.py')]) })
-  expect((await ui.find({ key: 'fold-group' }))?.text).toBe('• Read 2 files')
+  expect((await ui.find({ key: 'fold-group' }))?.text).toBe('▾')
+  expect(await textOf(ui)).toContain('Read 2 files')
   let text = await textOf(ui)
   expect(text).toContain('├─ ')
   expect(text).toContain('/a.py')
@@ -117,7 +120,8 @@ test('a group of several calls shows its branches until clicked', async $ => {
 test('a group of one call draws that call as its own card', async $ => {
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...group([read('r3', '/c.py')]) })
   expect(await ui.find({ key: 'fold-group' })).toBeUndefined()
-  expect((await ui.find({ key: 'fold-r3' }))?.text).toBe('● Read: ')
+  expect((await ui.find({ key: 'fold-r3' }))?.text).toBe('▸')
+  expect(await textOf(ui)).toMatch(/● [\s\S]*Read: /)
   await ui.unmount()
 })
 
@@ -245,7 +249,7 @@ test('a running card spins while the call is in flight', async ($, on) => {
   const running = { ...bash('t12'), props: { ...bash('t12').props, isRunning: true, output: undefined } }
   const call = $.tool.call({ tool: 'Bash', command: 'sleep 1', description: 'Wait' })
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...running })
-  const glyph = async () => (await ui.find({ key: 'fold-t12' }))?.text.charAt(0)
+  const glyph = async () => (await ui.findAll({ type: 'Text' }))[0]?.text.charAt(0)
   const first = await glyph()
   expect('⠴⠦⠖⠲').toContain(first ?? '?')
   await clock.advance(240)
