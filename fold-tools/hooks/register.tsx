@@ -86,20 +86,54 @@ const stampOf = async ($: EngineInterface, e: { requestId: string }) => {
   return own || past.get(e.requestId) || 0
 }
 
-// A message in a heavy frame, its time at the right of the first line, then anything `aside`.
-const messageOf = async ($: EngineInterface, els: Els, e: { requestId: string }, color: string, body: RenderChildren, aside?: RenderChildren) => {
+// A heavy rule across the frame's width, between two corners.
+const ruleOf = (els: Els, left: string, right: string, color: string) => {
+  const { Box, Text } = els
+  return (
+    <Box height={1}>
+      {fixed(els, <Text color={color}>{left}</Text>)}
+      <Box flexGrow={1} width={0} height={1} overflow="hidden">
+        <Text color={color}>{'━'.repeat(FULL)}</Text>
+      </Box>
+      {fixed(els, <Text color={color}>{right}</Text>)}
+    </Box>
+  )
+}
+
+// A message in a heavy frame drawn by hand, so its mark sits on the left rail at the first line; its time ends that line, then anything `aside`.
+const messageOf = async ($: EngineInterface, els: Els, e: { requestId: string }, color: string, mark: { glyph: string; color?: string } | undefined, body: RenderChildren, aside?: RenderChildren) => {
   const { Box, Text } = els
   const stamp = await stampOf($, e)
   const time = stamp ? timeOf(stamp, await $.clock.now()) : ''
+  // The rails stand outside the flow, stretched to the body's height and cut there; the mark keeps its row as the rail is cut.
+  const rail = Array.from({ length: FULL }, () => '┃').join('\n')
   return (
-    <Box borderStyle="bold" borderColor={color} paddingX={1} marginTop={GAP}>
-      <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0}>
-        {body}
+    <Box flexDirection="column" marginTop={GAP}>
+      {ruleOf(els, '┏', '┓', color)}
+      <Box paddingLeft={2} paddingRight={2}>
+        <Box position="absolute" top={0} bottom={0} left={0} width={1} flexDirection="column" overflow="hidden">
+          {mark
+            ? fixed(
+                els,
+                <Text bold color={mark.color}>
+                  {mark.glyph}
+                </Text>,
+              )
+            : undefined}
+          <Text color={color}>{rail}</Text>
+        </Box>
+        <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0}>
+          {body}
+        </Box>
+        <Box flexShrink={0}>
+          {time && <Text color={C.dim}>  {time}</Text>}
+          {aside}
+        </Box>
+        <Box position="absolute" top={0} bottom={0} right={0} width={1} overflow="hidden">
+          <Text color={color}>{rail}</Text>
+        </Box>
       </Box>
-      <Box flexShrink={0}>
-        {time && <Text color={C.dim}>  {time}</Text>}
-        {aside}
-      </Box>
+      {ruleOf(els, '┗', '┛', color)}
     </Box>
   )
 }
@@ -392,7 +426,7 @@ export const register: Register = on => {
     return { sections: [...sections.filter(s => s.id !== INTENT.id), INTENT] }
   })
 
-  // Claude's text in a dim frame with its time, drawn as a reply is (an engine node may not sit in a sized Box); » lines come out of it as the intent headings of the calls below.
+  // Claude's text in a dim frame, the reply's bullet on its rail, drawn as a reply is (an engine node may not sit in a sized Box); » lines come out of it as the intent headings of the calls below.
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
     if (e.props.isSummary) return next(e)
     const lines = e.props.text.split('\n')
@@ -400,17 +434,8 @@ export const register: Register = on => {
     const els = $.ui.resolve(e)
     const { Box, Markdown, Text } = els
     const rest = lines.filter(line => !INTENT_LINE.test(line)).join('\n').trim()
-    const body = (
-      <Box>
-        <Box flexShrink={0}>
-          <Text>{e.props.isFirstOfReply ? '⏺ ' : '  '}</Text>
-        </Box>
-        <Box flexGrow={1} flexShrink={1} width={0}>
-          <Markdown text={rest} />
-        </Box>
-      </Box>
-    )
-    const framed = rest ? await messageOf($, els, e, C.dim, body) : undefined
+    const mark = e.props.isFirstOfReply ? { glyph: '⏺' } : undefined
+    const framed = rest ? await messageOf($, els, e, C.dim, mark, <Markdown text={rest} />) : undefined
     if (!intents.length) return framed ?? next(e)
     const heads = (
       <Box flexDirection="column" marginTop={GAP}>
@@ -472,27 +497,15 @@ export const register: Register = on => {
     }
   })
 
-  // The person's own prompts in a blue frame: a prompt icon, the text, its time and submission status.
+  // The person's own prompts in a blue frame, the prompt icon on its rail: the text, its time and submission status.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.props.origin.kind !== 'composer') return next(e)
     const els = $.ui.resolve(e)
-    const { Box, Text } = els
+    const { Text } = els
     const isQueued = (await read($, queued)).some(q => q.text === e.props.text)
     const frame = isQueued ? await read($, tick) : 0
-    const body = (
-      <Box>
-        <Box flexShrink={0}>
-          <Text bold color={C.user}>
-            ❯{' '}
-          </Text>
-        </Box>
-        <Box flexGrow={1} flexShrink={1}>
-          <Text>{e.props.text}</Text>
-        </Box>
-      </Box>
-    )
     const status = <Text color={isQueued ? C.warning : C.success}>  {isQueued ? CLOCK[frame % CLOCK.length] : '✓'}</Text>
-    return messageOf($, els, e, C.user, body, status)
+    return messageOf($, els, e, C.user, { glyph: '❯', color: C.user }, <Text>{e.props.text}</Text>, status)
   })
 
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
