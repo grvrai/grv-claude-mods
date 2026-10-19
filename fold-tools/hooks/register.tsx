@@ -356,10 +356,11 @@ const railOf = (els: Els, id: string, tone: Tone, sections: Section[], footer: F
 // Only a running card reads the tick, so a finished one never redraws for it.
 const spinOf = async ($: EngineInterface, isRunning: boolean) => (isRunning ? read($, tick) : 0)
 
-// One card: a single header line, folded; unfolded, its body on a rail beneath.
-const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, hasEngineBody: boolean) => {
+// One card: a single header line, folded; unfolded, its body on a rail beneath. A row the view expands (a click on it, ctrl+o) shows its whole body, the view's own fold in place of the card's.
+const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, hasEngineBody: boolean, isExpanded = false) => {
   const { Box } = els
-  const fold = await foldOf($, { requestId: id })
+  const own = await foldOf($, { requestId: id })
+  const fold = isExpanded ? { ...own, isOpen: true, isFull: true } : own
   const head = headerOf(els, id, card, s, fold, await spinOf($, s.isRunning))
   const canOpen = !s.isRunning && (card.body !== undefined || hasEngineBody)
   const shown = canOpen && fold.isOpen && card.body ? shownOf(els, card.body, fold) : undefined
@@ -368,7 +369,7 @@ const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: St
       <Box key={`row-${id}`} height={1}>
         {head}
       </Box>
-      {shown && railOf(els, id, toneOf(s), shown.sections, footerOf(shown, fold))}
+      {shown && railOf(els, id, toneOf(s), shown.sections, isExpanded ? undefined : footerOf(shown, fold))}
     </Box>
   )
 }
@@ -510,16 +511,14 @@ export const register: Register = on => {
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     const { tool, input, output } = e.props
     if (SKIP.has(tool)) return next(e)
-    const els = $.ui.resolve(e)
-    const { Box } = els
     const card = cardOf(tool, input, output, cwd, home)
-    return rowOf($, els, e.requestId, card, e.props, !OWN.has(tool))
+    return rowOf($, $.ui.resolve(e), e.requestId, card, e.props, !OWN.has(tool), e.props.isExpanded)
   })
 
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
     if (SKIP.has(e.props.tool)) return next(e)
     const { Box } = $.ui.resolve(e)
-    if (OWN.has(e.props.tool) || !(await foldOf($, e)).isOpen) return <Box />
+    if (OWN.has(e.props.tool) || !(e.props.isExpanded || (await foldOf($, e)).isOpen)) return <Box />
     const engine = await next(e)
     return <Box marginLeft={2}>{engine}</Box>
   })

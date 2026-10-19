@@ -328,3 +328,13 @@ test('a transcript too big for one read is backfilled from its tail', async ($, 
   expect((await prompt.findAll({ type: 'Text' })).map(t => t.text).join('')).toContain(timeOf(Date.parse('2026-10-20T08:45:00.000Z'), Date.parse('2026-10-20T09:00:00Z')))
   await prompt.unmount()
 })
+
+test('a row the view expands shows its whole body, without the fold control of the card', async $ => {
+  const expanded = { ...bash('t20'), props: { ...bash('t20').props, isExpanded: true } }
+  const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...expanded })
+  const text = await textOf(ui)
+  expect(text).toContain('line 1')
+  expect(text).toContain('line 30')
+  expect(await ui.find({ key: 'more-t20' })).toBeUndefined()
+  await ui.unmount()
+})

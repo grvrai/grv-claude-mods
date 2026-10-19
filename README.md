@@ -21,7 +21,7 @@ Four small mods that make Claude Code's terminal easier to read, in the look and
 
 | Mod | What you get |
 | --- | --- |
-| **fold-tools** | Every tool call is one tidy line; point at it and its icon turns into `▸`, click that to see the output or diff (no highlight). Claude writes a short `» intent` above its calls. Your messages and Claude's are framed and timestamped, and your prompt shows `◴` while queued, `✓` once sent. |
+| **fold-tools** | Every tool call is one tidy line; click it, or the `▸` its icon turns into when you point at it, to see the output or diff. Claude writes a short `» intent` above its calls. Your messages and Claude's are framed and timestamped, and your prompt shows `◴` while queued, `✓` once sent. |
 | **turn-questions** | Every question Claude asked in a turn, collected in one framed list above the prompt, so none get lost. |
 | **session-sidebar** | A sidebar with subagents, todos and changed files. It appears only when there is something to show; `/sidebar` toggles it. |
 | **context-bar** | A bar under the prompt: model, effort, a context gauge with percent and tokens, rate limits, plus buttons for the agents list `⟦☰⟧`, the sidebar `⟦◨⟧` and compact `⟦⊟⟧`. |
