@@ -10,16 +10,16 @@ export type StatusInput = {
   rate_limits?: Record<string, { used_percentage?: number } | undefined>
 }
 
-// oh-my-pi's dark theme (tui/src/theme/dark.json) and unicode symbols (theme/symbols.ts).
+// Claude Code's own theme colors (its pastel palette by default); oh-my-pi's unicode symbols (theme/symbols.ts).
 export const C = {
-  model: '#d787af',
-  context: '#8787af',
-  used: '#0088fa',
-  warning: '#e4c00f',
-  purple: '#b281d6',
-  error: '#fc3a4b',
-  dim: '#5f6673',
-  sep: '#808080',
+  model: 'claude',
+  context: 'permission',
+  used: 'suggestion',
+  warning: 'warning',
+  purple: 'autoAccept',
+  error: 'error',
+  dim: 'subtle',
+  sep: 'inactive',
 }
 export const ICON = { model: '⬢', context: '◫', fast: '⚡' }
 // Claude Code sets the status line two columns in and cuts it a few columns short of the edge.

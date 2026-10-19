@@ -5,10 +5,10 @@ import type { Usage } from '../types'
 import { barOf, C } from './gauge'
 import type { StatusInput } from './gauge'
 
-const COMPACT = '⊟ compact'
-const AGENTS = '← agents'
-// Both buttons, their brackets and the spaces before them take this many columns at the bar's end.
-const BUTTONS_WIDTH = COMPACT.length + AGENTS.length + 6
+// Icon buttons: the agents list before the bar, compact after it; with brackets and a space each takes four columns.
+const AGENTS = '☰'
+const COMPACT = '⊟'
+const BUTTONS_WIDTH = 8
 // Commands after which the model or effort may have changed.
 const RETUNE = new Set(['model', 'effort', 'fast', 'config'])
 
@@ -86,7 +86,7 @@ export const register: Register = on => {
     return ran
   })
 
-  // Under the prompt, oh-my-pi's bar with agents and compact buttons at its end; the engine's hint stays beneath.
+  // Under the prompt, oh-my-pi's bar between an agents-list button and a compact button; the engine's hint stays beneath.
   on('ui.render', { component: 'PromptHint' }, async ($, e, next) => {
     const hint = await next(e)
     const [fillNow, id, level, windows] = await Promise.all([read($, usage), read($, model), read($, effort), read($, limits)])
@@ -100,9 +100,20 @@ export const register: Register = on => {
     const runs = barOf(input, (e.viewport?.columns ?? 100) - BUTTONS_WIDTH)
     // Compaction cannot run during a turn, so the button rests dim until the turn ends.
     const isIdle = !e.props.isWorking
+    const chip = (key: string, icon: string, color: string, onPress: () => unknown) => (
+      <Button key={key} plain onPress={onPress}>
+        <Text color={C.dim}>⟦</Text>
+        <Text color={color}>{icon}</Text>
+        <Text color={C.dim}>⟧</Text>
+      </Button>
+    )
     return (
       <Box flexDirection="column">
         <Box height={1}>
+          <Box flexShrink={0}>
+            {chip('agents', AGENTS, C.context, () => toAgents($))}
+            <Text> </Text>
+          </Box>
           <Box flexShrink={1} height={1} overflow="hidden">
             <Text wrap="truncate-end">
               {runs.map(r => (
@@ -112,17 +123,7 @@ export const register: Register = on => {
           </Box>
           <Box flexShrink={0}>
             <Text> </Text>
-            <Button key="agents" plain onPress={() => toAgents($)}>
-              <Text color={C.dim}>⟦</Text>
-              <Text color={C.context}>{AGENTS}</Text>
-              <Text color={C.dim}>⟧</Text>
-            </Button>
-            <Text> </Text>
-            <Button key="compact" plain dimColor={!isIdle} onPress={() => (isIdle ? compact($) : undefined)}>
-              <Text color={C.dim}>⟦</Text>
-              <Text color={isIdle ? C.context : C.dim}>{COMPACT}</Text>
-              <Text color={C.dim}>⟧</Text>
-            </Button>
+            {chip('compact', COMPACT, isIdle ? C.context : C.dim, () => (isIdle ? compact($) : undefined))}
           </Box>
         </Box>
         {hint}

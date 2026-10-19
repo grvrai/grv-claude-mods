@@ -76,7 +76,7 @@ const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold) => {
       els,
       <Button key={`fold-${id}`} plain onPress={fold.toggle}>
         <Text color={icon.color}>{icon.glyph} </Text>
-        <Text color={C.accent}>{card.title}</Text>
+        <Text bold>{card.title}</Text>
         <Text color={C.dim}>{card.target ? ': ' : ''}</Text>
       </Button>,
     ),
@@ -196,7 +196,7 @@ const footerOf = (shown: Shown, fold: Fold): Footer =>
 // oh-my-pi's output block: the header set into the top rule, rails, labelled dividers, the footer in the bottom rule.
 const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], shown: Shown, footer: Footer) => {
   const { Box, Button, Text } = els
-  const { border, bg } = FRAME[tone]
+  const border = FRAME[tone]
   const edge = (text: string) => fixed(els, <Text color={border}>{text}</Text>)
   const rule = (left: RenderChildren[], right: string) => (
     <Box height={1}>
@@ -206,7 +206,7 @@ const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], shown
     </Box>
   )
   return (
-    <Box flexDirection="column" backgroundColor={bg}>
+    <Box flexDirection="column">
       {rule(head.length ? [edge('╭─── '), ...head, edge(' ')] : [edge('╭')], '╮')}
       {shown.sections.map(section => {
         if ('divider' in section) return rule([edge('├─── '), fixed(els, <Text color={C.muted}>{section.divider} </Text>)], '┤')

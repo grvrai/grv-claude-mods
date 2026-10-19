@@ -1,11 +1,10 @@
-// oh-my-pi's dark palette (tui/src/theme/dark.json).
+// Claude Code's own theme colors, so frames follow the person's theme (its pastel palette by default).
 export const C = {
-  accent: '#febc38',
-  success: '#89d281',
-  warning: '#e4c00f',
-  muted: '#777d88',
-  dim: '#5f6673',
-  borderMuted: '#3d424a',
-  border: '#178fb9',
-  bgSuccess: '#161a1f',
+  accent: 'claude',
+  success: 'success',
+  warning: 'warning',
+  muted: 'inactive',
+  dim: 'subtle',
+  borderMuted: 'promptBorder',
+  border: 'permission',
 }

@@ -30,12 +30,12 @@ const VERBS: Record<string, [string, string]> = {
   Bash: ['ran', 'command'],
 }
 const ICONS: Record<string, { glyph: string; color: string }> = {
-  Bash: { glyph: '❯', color: C.accent },
+  Bash: { glyph: '❯', color: C.bash },
   Edit: { glyph: '✎', color: C.accent },
   Write: { glyph: '✎', color: C.accent },
   Read: { glyph: '●', color: C.muted },
-  Grep: { glyph: '🔍', color: C.accent },
-  Glob: { glyph: '🔍', color: C.accent },
+  Grep: { glyph: '🔍', color: C.info },
+  Glob: { glyph: '🔍', color: C.info },
 }
 const DONE = { glyph: G.success, color: C.success }
 

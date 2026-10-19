@@ -1,7 +1,9 @@
 {
   "name": "session-sidebar",
-  "version": "0.3.0",
-  "description": "A docked sidebar of this session's subagents, todos and files touched",
-  "author": { "name": "grvrai" },
+  "version": "0.4.0",
+  "description": "Cards above the prompt for this session's subagents, todos and changed files",
+  "author": {
+    "name": "grvrai"
+  },
   "types": "./types/index.d.ts"
 }

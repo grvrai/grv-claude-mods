@@ -129,7 +129,7 @@ export const register: Register = on => {
     const { Box } = els
     const pairs = pairsOf(output)
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor={C.borderMuted} backgroundColor={C.bgSuccess} paddingX={1}>
+      <Box flexDirection="column" borderStyle="round" borderColor={C.borderMuted} paddingX={1}>
         {titleOf(els, '? Ask', plural(pairs.length, 'question'))}
         {rowsOf(els, pairs)}
       </Box>

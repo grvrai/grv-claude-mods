@@ -1,6 +1,6 @@
 # grv-claude-mods
 
-Claude Code mods (function-hook plugins) that redraw the terminal UI in the style of [oh-my-pi](https://github.com/can1357/oh-my-pi).
+Claude Code mods (function-hook plugins) that redraw the terminal UI in the style of [oh-my-pi](https://github.com/can1357/oh-my-pi), in Claude Code's own theme colors.
 
 Built against Claude Code 2.1.303. The mod API is early access and may change between releases.
 
@@ -54,26 +54,21 @@ Click a card's icon and title to unfold it into oh-my-pi's output block:
 
 ### session-sidebar
 
-A docked pane (`Session`) that appears only while it has something to show: a rounded card for each section that has data, its label set into the top rule.
+Cards above the prompt, side by side and right-aligned: one for each of subagents, todos and changed files that has something to show.
 
 ```
-╭─ TODOS · 1/2 ─────────────────╮
-│ ✔ Build the bar               │
-│ ○ Style the sidebar           │
-╰───────────────────────────────╯
-
-╭─ FILES · 1 changed ───────────╮
-│ A out.txt                  +3 │
-╰───────────────────────────────╯
+            ╭─ TODOS · 1/2 ────────────╮ ╭─ FILES · 1 changed ──────╮
+            │ ○ Style the cards        │ │ A out.txt          +4 -1 │
+            │ ✔ Build the bar          │ ╰──────────────────────────╯
+            ╰──────────────────────────╯
+──────────────────────────────────────────────────────────────────────
+❯ _
 ```
-
-Sections:
 
 - **SUBAGENTS**: each subagent's type, task, status and run time. Click one to show its transcript; `← back to main` returns.
-- **TODOS**: live from `TaskCreate`/`TaskUpdate`/`TodoWrite`, seeded from `TaskList` on the first turn.
+- **TODOS**: live from `TaskCreate`/`TaskUpdate`/`TodoWrite`, seeded from `TaskList` on the first turn; unfinished first.
 - **FILES**: files edited (`M`) or created (`A`) with `+N -M` counts, plus how many files were read. Click a path to copy it.
-
-It opens by itself once a subagent, todo or changed file exists, closes when none is left, and only where the terminal docks panes (fullscreen, 110+ columns), asking for 34 columns. Closing it (`✕` or `/sidebar`) keeps it closed until `/sidebar` opens it again, which keeps it open even while empty. A dock width you have dragged is kept by Claude Code (`pluginPanes.dockColumns` in `~/.claude.json`) and wins over that request.
+- A card shows six rows at most, then `… N more`. `/sidebar` hides or shows the cards.
 
 ### context-bar
 
@@ -83,18 +78,18 @@ oh-my-pi's bar in the row under the prompt: the model and effort level, a rule t
 ❯ _
 ───────────────────────────────────────────────────────────────────────────────────
   ⏵⏵ bypass permissions on (shift+tab to cycle)
-  ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━━━━━ 57% ────────── 1M ─ › 5h 40% · 7d 12% ⟦← agents⟧ ⟦⊟ compact⟧
+  ⟦☰⟧ ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━━━━━ 57% ────────── 1M ─ › 5h 40% · 7d 12% ⟦⊟⟧
 ```
 
 - The lit share is the context used, its percent set right after it, the window size at the end. It turns yellow, purple and red at oh-my-pi's thresholds (50/70/90%, or 150k/270k/500k tokens, whichever comes first); the rate-limit windows color the same way.
-- `⟦← agents⟧` runs `/background`: the session keeps running and the terminal shows the agents list, as `←` at an empty prompt does.
-- `⟦⊟ compact⟧` compacts the conversation, as `/compact` does; it rests while Claude is working.
+- `⟦☰⟧` runs `/background`: the session keeps running and the terminal shows the agents list, as `←` at an empty prompt does.
+- `⟦⊟⟧` compacts the conversation, as `/compact` does; it rests while Claude is working.
 - Model and effort come from each model request; before the first, the model is the session's and effort is `effortLevel` from settings. `/model` and `/effort` refresh them.
 
 ## Requirements
 
 - Clicking cards and sidebar rows needs a terminal that reports the mouse, which is the fullscreen TUI (`"tui": "fullscreen"`).
-- Colors are oh-my-pi's dark palette, tuned for dark terminal themes.
+- Colors are Claude Code's theme colors (`claude`, `suggestion`, `permission`, `success`, `error`, …), so they follow whichever theme you pick in `/config`.
 
 ## Install
 

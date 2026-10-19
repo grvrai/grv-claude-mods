@@ -18,12 +18,12 @@
     {
       "name": "session-sidebar",
       "source": "./session-sidebar",
-      "description": "A docked sidebar of this session's subagents, todos and files touched"
+      "description": "Cards above the prompt for this session's subagents, todos and changed files"
     },
     {
       "name": "context-bar",
       "source": "./context-bar",
-      "description": "oh-my-pi style status line under the prompt: model, effort, a context-usage gauge and rate limits"
+      "description": "oh-my-pi style bar under the prompt: model, effort, a context-usage gauge, rate limits, and agents and compact buttons"
     }
   ]
 }
