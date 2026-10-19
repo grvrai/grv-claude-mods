@@ -172,7 +172,7 @@ test('cards and diff rows summarise each tool', () => {
   expect(groupSummary([{ tool: 'Read' }, { tool: 'Read' }, { tool: 'Grep' }])).toBe('Read 2 files · searched 1 pattern')
 })
 
-test('cards, intents and framed messages (summaries too) keep one blank row above them', async ($, on) => {
+test('intents and framed messages (summaries too) keep one blank row above them; tool calls bunch with none', async ($, on) => {
   on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
     const { Text } = $.ui.resolve(e)
     return <Text>{e.props.text}</Text>
@@ -191,7 +191,7 @@ test('cards, intents and framed messages (summaries too) keep one blank row abov
   expect(await intent.drawn()).toMatchObject({ type: 'Box', props: { marginTop: 1 } })
   await intent.unmount()
   const card = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...bash('t9') })
-  expect(await card.drawn()).toMatchObject({ type: 'Box', props: { marginTop: 1 } })
+  expect(JSON.stringify(await card.drawn())).not.toContain('marginTop')
   await card.unmount()
 })
 

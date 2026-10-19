@@ -18,7 +18,7 @@ const FRAME_MS = 120
 // How much of a transcript too big for one read the backfill takes from its end.
 const TAIL_BYTES = 4_000_000
 const INTENT_LINE = /^\s*»\s+(.+?)\s*$/
-// One blank row above each card, as the engine gives the tool rows it draws itself.
+// One blank row above each intent heading and message; tool calls go without, so a run of them stays bunched.
 const GAP = 1
 const INTENT = {
   id: 'fold-tools:intent',
@@ -513,7 +513,7 @@ export const register: Register = on => {
     const els = $.ui.resolve(e)
     const { Box } = els
     const card = cardOf(tool, input, output, cwd, home)
-    return <Box marginTop={GAP}>{await rowOf($, els, e.requestId, card, e.props, !OWN.has(tool))}</Box>
+    return rowOf($, els, e.requestId, card, e.props, !OWN.has(tool))
   })
 
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
@@ -532,7 +532,7 @@ export const register: Register = on => {
     const only = calls.length === 1 ? calls[0] : undefined
     if (only) {
       const card = cardOf(only.tool, only.input, only.output, cwd, home)
-      return <Box marginTop={GAP}>{await rowOf($, els, only.tool_use_id ?? e.requestId, card, only, false)}</Box>
+      return rowOf($, els, only.tool_use_id ?? e.requestId, card, only, false)
     }
     const fold = await foldOf($, e, true)
     const status = {
@@ -550,7 +550,7 @@ export const register: Register = on => {
         )
       : []
     return (
-      <Box flexDirection="column" marginTop={GAP}>
+      <Box flexDirection="column">
         <Box key={`row-${e.requestId}`} height={1}>
           {toggleOf(els, 'fold-group', icon, fold.isOpen, fold.toggle)}
           <Text bold color={C.accent}>
