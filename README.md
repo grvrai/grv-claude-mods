@@ -8,20 +8,21 @@ Built against Claude Code 2.1.303. The mod API is early access and may change be
 
 ### fold-tools
 
-Tool calls are drawn as oh-my-pi cards. Folded (the default), each is its title line:
+Every tool call is an oh-my-pi card: its title set into the top rule, its controls in the bottom rule. Folded (the default), a card is just its frame:
 
 ```
-» Counting to thirty
-❯ Bash: Count to thirty  30 lines
-• Read 2 files
-  ├─ ● Read: notes.md  6 lines
-  └─ ● Read: app.py  3 lines
-✎ Create: out.txt ⟦+5⟧
-✎ Edit: out.txt ⟦+1/-1⟧
-🔍 Grep: alpha  3 matches
+» Counting to five
+
+╭─── ❯ Bash: Count to five  5 lines ────────────────────────╮
+╰─── ⟦expand⟧ ──────────────────────────────────────────────╯
+
+╭─── • Read 2 files ─────────────────────────────────────────╮
+│ ├─ ● Read: notes.md  6 lines                               │
+│ └─ ● Read: app.py  3 lines                                 │
+╰─── ⟦collapse⟧ ─────────────────────────────────────────────╯
 ```
 
-Click a card's icon and title to unfold it into oh-my-pi's output block:
+Unfolded, its body sits inside the frame:
 
 ```
 ╭─── ❯ Bash: Count to thirty  30 lines ─────────────────────╮
@@ -29,22 +30,16 @@ Click a card's icon and title to unfold it into oh-my-pi's output block:
 ├─── Output ─────────────────────────────────────────────────┤
 │ 21                                                         │
 │ …                                                          │
-│ 30                                                         │
 ╰─── … 20 more earlier lines ⟦show all⟧ ─────────────────────╯
-╭─── ✎ Edit: out.txt ⟦+1/-1⟧ ────────────────────────────────╮
-│    2│line 2                                                │
-│ -  3│line 3                                                │
-│ +   │line three                                            │
-╰─── ⟦collapse⟧ ─────────────────────────────────────────────╯
 ```
 
-- An unfolded card shows up to 10 lines of shell output (its tail), 40 diff lines or 12 lines of code or text; the bottom rule's `⟦show all⟧` lifts the cap and `⟦collapse⟧` folds it back.
-- Diffs use oh-my-pi's gutter (`-113│`), whole-line color and inverted changed words. Grep and Glob hang matches on `├─`/`└─` branches; a group of several calls lists them as branches.
-- Borders are dim when a call succeeded, amber while it runs and red when it failed, on oh-my-pi's tinted card backgrounds.
-- `/fold open` and `/fold close` open or close every card; `/fold` toggles.
-- Adds one system-prompt section asking Claude to write `» <intent>` (a 2–6-word present-participle phrase) before each tool call. That line is drawn as the bold heading of the cards that follow.
+- Click a card's title or its `⟦expand⟧` to unfold it. An unfolded card shows up to 10 lines of shell output (its tail), 40 diff lines or 12 lines of code or text; `⟦show all⟧` lifts the cap and `⟦collapse⟧` folds it back. `/fold open|close` opens or closes every card.
+- Each tool's name and icon take its own Claude theme color (Bash pink, Edit orange, Read and searches lavender); a failed call's frame turns red, a running one's orange.
+- Diffs use oh-my-pi's gutter (`-113│`), whole-line color and inverted changed words. Grep and Glob hang matches on `├─`/`└─` branches; a group of several calls is one frame with a branch per call, each unfolding inside it.
+- Your own prompts sit in a rounded frame of Claude's orange, apart from the gray tool cards.
+- Adds one system-prompt section asking Claude to write `» <intent>` (a 2–6-word present-participle phrase) before each tool call; that line is drawn as a bold heading above the cards.
+- Spacing: one blank row above every card, group and intent, as Claude Code spaces the rows it draws itself.
 - Left to Claude Code's own drawing: `AskUserQuestion` (see turn-questions) and `Agent` rows.
-- Spacing: one blank row above every card, group and intent, as Claude Code spaces the rows it draws itself, so tool calls never sit against the message above.
 
 ### turn-questions
 

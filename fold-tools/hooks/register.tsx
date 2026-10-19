@@ -35,7 +35,8 @@ type Fold = Awaited<ReturnType<typeof foldOf>>
 type Row = { node: RenderChildren; height: number }
 type Section = { rows: Row[] } | { divider: string }
 type Shown = { sections: Section[]; hidden: number; total: number; unit: string }
-type Footer = { more: string; label: string; onPress: () => Promise<unknown> } | undefined
+type Control = { more: string; label: string; onPress: () => Promise<unknown> }
+type Footer = Control | undefined
 
 let cwd = ''
 let home = ''
@@ -76,7 +77,9 @@ const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold) => {
       els,
       <Button key={`fold-${id}`} plain onPress={fold.toggle}>
         <Text color={icon.color}>{icon.glyph} </Text>
-        <Text bold>{card.title}</Text>
+        <Text bold color={card.tint}>
+          {card.title}
+        </Text>
         <Text color={C.dim}>{card.target ? ': ' : ''}</Text>
       </Button>,
     ),
@@ -177,24 +180,36 @@ const shownOf = (els: Els, body: Body, fold: Fold): Shown => {
         unit: 'earlier lines',
       }
     }
-    case 'text':
+    case 'text': {
+      const shown = body.lines.slice(0, cap)
+      const rows = linesOf(els, shown, body.isError ? C.error : C.muted)
+      return { sections: [{ rows }], hidden: body.lines.length - shown.length, total: body.lines.length, unit: 'lines' }
+    }
     case 'tree': {
-      const all = body.kind === 'text' ? body.lines : body.items
-      const shown = all.slice(0, cap)
-      const color = body.kind === 'text' && body.isError ? C.error : C.muted
-      return { sections: [{ rows: linesOf(els, shown, color) }], hidden: all.length - shown.length, total: all.length, unit: 'lines' }
+      // Grep and Glob hang their matches on branches.
+      const shown = body.items.slice(0, cap)
+      const rows = shown.map((item, n) => ({
+        node: (
+          <Text wrap="truncate-end">
+            <Text color={C.dim}>{n === shown.length - 1 ? G.last : G.branch} </Text>
+            <Text color={C.muted}>{item}</Text>
+          </Text>
+        ),
+        height: 1,
+      }))
+      return { sections: [{ rows }], hidden: body.items.length - shown.length, total: body.items.length, unit: 'more' }
     }
   }
 }
 
 // The control oh-my-pi puts at a body's end: what is cut and how to see it.
-const footerOf = (shown: Shown, fold: Fold): Footer =>
+const footerOf = (shown: Shown, fold: Fold): Control =>
   shown.hidden > 0
     ? { more: `… ${shown.hidden} more ${shown.unit} `, label: 'show all', onPress: fold.showAll }
     : { more: '', label: 'collapse', onPress: fold.toggle }
 
 // oh-my-pi's output block: the header set into the top rule, rails, labelled dividers, the footer in the bottom rule.
-const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], shown: Shown, footer: Footer) => {
+const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], sections: Section[], footer: Footer) => {
   const { Box, Button, Text } = els
   const border = FRAME[tone]
   const edge = (text: string) => fixed(els, <Text color={border}>{text}</Text>)
@@ -207,8 +222,8 @@ const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], shown
   )
   return (
     <Box flexDirection="column">
-      {rule(head.length ? [edge('╭─── '), ...head, edge(' ')] : [edge('╭')], '╮')}
-      {shown.sections.map(section => {
+      {rule([edge('╭─── '), ...head, edge(' ')], '╮')}
+      {sections.map(section => {
         if ('divider' in section) return rule([edge('├─── '), fixed(els, <Text color={C.muted}>{section.divider} </Text>)], '┤')
         const height = section.rows.reduce((n, r) => n + r.height, 0)
         const rail = Array.from({ length: height }, () => '│').join('\n')
@@ -243,69 +258,47 @@ const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], shown
   )
 }
 
-// Grep and Glob hang their matches on branches instead of a frame.
-const branchesOf = (els: Els, id: string, shown: Shown, footer: Footer) => {
-  const { Box, Button, Text } = els
-  const list = shown.sections.flatMap(s => ('rows' in s ? s.rows : []))
-  return (
-    <Box flexDirection="column" marginLeft={2}>
-      {list.map((r, n) => (
-        <Box height={1}>
-          {fixed(els, <Text color={C.dim}>{n === list.length - 1 && !footer ? G.last : G.branch} </Text>)}
-          {r.node}
-        </Box>
-      ))}
-      {footer && (
-        <Button key={`more-${id}`} plain onPress={footer.onPress}>
-          <Text color={C.dim}>
-            {G.last} {footer.more}
-          </Text>
-          <Text color={C.muted}>⟦{footer.label}⟧</Text>
-        </Button>
-      )}
-    </Box>
-  )
-}
-
-// Framed even when folded, as oh-my-pi frames these blocks; Read frames once opened, Grep and Glob never.
-const isFramed = (card: Card, s: Status, isOpen: boolean) => {
-  const kind = card.body?.kind
-  return isOpen && kind !== undefined && kind !== 'tree' && (kind === 'shell' || !s.isRunning)
-}
-
-// One card: its header stays on its row when toggled; the body unfolds beneath or inside its frame.
-const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, lead: string, hasEngineBody: boolean) => {
-  const { Box, Text } = els
+// Every card is framed: folded, its title in the top rule and ⟦expand⟧ in the bottom one; unfolded, its body between.
+const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, hasEngineBody: boolean) => {
   const fold = await foldOf($, { requestId: id })
-  const head = headerOf(els, id, card, s, fold)
-  const tone = toneOf(s)
-  if (!lead && card.body && isFramed(card, s, fold.isOpen)) {
-    const shown = shownOf(els, card.body, fold)
-    return frameOf(els, id, tone, head, shown, footerOf(shown, fold))
-  }
   const canOpen = !s.isRunning && (card.body !== undefined || hasEngineBody)
-  const body = canOpen && fold.isOpen ? card.body : undefined
-  const shown = body && shownOf(els, body, fold)
-  return (
-    <Box flexDirection="column">
-      <Box key={`row-${id}`} height={1}>
-        {lead && fixed(els, <Text color={C.dim}>{lead}</Text>)}
-        {head}
-        {canOpen && (
-          <Box flexShrink={0} display="none" hover={{ display: 'flex' }}>
-            <Text color={C.dim}>  ⟦{fold.isOpen ? 'collapse' : 'expand'}⟧</Text>
-          </Box>
-        )}
+  const shown = canOpen && fold.isOpen && card.body ? shownOf(els, card.body, fold) : undefined
+  const footer = shown ? footerOf(shown, fold) : canOpen ? { more: '', label: fold.isOpen ? 'collapse' : 'expand', onPress: fold.toggle } : undefined
+  return frameOf(els, id, toneOf(s), headerOf(els, id, card, s, fold), shown?.sections ?? [], footer)
+}
+
+// One call of a group, as rows inside the group's frame: its branch line, and its body indented beneath once unfolded.
+const branchOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, lead: string): Promise<Row[]> => {
+  const { Box, Button, Text } = els
+  const fold = await foldOf($, { requestId: id })
+  const top = {
+    node: (
+      <Box height={1}>
+        {fixed(els, <Text color={C.dim}>{lead}</Text>)}
+        {headerOf(els, id, card, s, fold)}
       </Box>
-      {body &&
-        shown &&
-        (body.kind === 'tree' ? (
-          branchesOf(els, id, shown, footerOf(shown, fold))
-        ) : (
-          <Box marginLeft={lead ? 3 : 0}>{frameOf(els, id, tone, [], shown, footerOf(shown, fold))}</Box>
-        ))}
-    </Box>
+    ),
+    height: 1,
+  }
+  if (s.isRunning || !fold.isOpen || !card.body) return [top]
+  const shown = shownOf(els, card.body, fold)
+  const footer = footerOf(shown, fold)
+  const indent = (node: RenderChildren) => <Box paddingLeft={3}>{node}</Box>
+  const body = shown.sections.flatMap((section): Row[] =>
+    'divider' in section
+      ? [{ node: indent(<Text color={C.dim}>─ {section.divider} ─</Text>), height: 1 }]
+      : section.rows.map(r => ({ node: indent(r.node), height: r.height })),
   )
+  const foot = {
+    node: indent(
+      <Button key={`more-${id}`} plain onPress={footer.onPress}>
+        <Text color={C.dim}>{footer.more}</Text>
+        <Text color={C.muted}>⟦{footer.label}⟧</Text>
+      </Button>,
+    ),
+    height: 1,
+  }
+  return [top, ...body, foot]
 }
 
 export const register: Register = on => {
@@ -360,13 +353,24 @@ export const register: Register = on => {
     )
   })
 
+  // The person's own prompts in a frame of Claude's color, apart from the gray of the tool cards.
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    if (e.props.origin.kind !== 'composer') return next(e)
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box borderStyle="round" borderColor={C.accent} paddingX={1}>
+        <Text>{e.props.text}</Text>
+      </Box>
+    )
+  })
+
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
     const { tool, input, output } = e.props
     if (SKIP.has(tool)) return next(e)
     const els = $.ui.resolve(e)
     const { Box } = els
     const card = cardOf(tool, input, output, cwd, home)
-    return <Box marginTop={GAP}>{await rowOf($, els, e.requestId, card, e.props, '', !OWN.has(tool))}</Box>
+    return <Box marginTop={GAP}>{await rowOf($, els, e.requestId, card, e.props, !OWN.has(tool))}</Box>
   })
 
   on('ui.render', { component: 'ToolResult' }, async ($, e, next) => {
@@ -384,49 +388,37 @@ export const register: Register = on => {
     const { calls } = e.props
     const only = calls.length === 1 ? calls[0] : undefined
     if (only) {
-      return <Box marginTop={GAP}>{await rowOf($, els, only.tool_use_id ?? e.requestId, cardOf(only.tool, only.input, only.output, cwd, home), only, '', false)}</Box>
+      const card = cardOf(only.tool, only.input, only.output, cwd, home)
+      return <Box marginTop={GAP}>{await rowOf($, els, only.tool_use_id ?? e.requestId, card, only, false)}</Box>
     }
     const fold = await foldOf($, e, true)
-    const icon = iconOf(
-      {
-        isRunning: calls.some(c => c.isRunning),
-        isErrored: calls.some(c => c.isErrored),
-        isInterrupted: calls.some(c => c.isInterrupted),
-      },
-      { glyph: G.bullet, color: C.success },
-    )
-    const head = (
-      <Box key="row-group" height={1}>
+    const status = {
+      isRunning: calls.some(c => c.isRunning),
+      isErrored: calls.some(c => c.isErrored),
+      isInterrupted: calls.some(c => c.isInterrupted),
+    }
+    const icon = iconOf(status, { glyph: G.bullet, color: C.success })
+    const head = [
+      fixed(
+        els,
         <Button key="fold-group" plain onPress={fold.toggle}>
           <Text color={icon.color}>{icon.glyph} </Text>
-          <Text>{groupSummary(calls)}</Text>
-        </Button>
-        <Box flexShrink={0} display="none" hover={{ display: 'flex' }}>
-          <Text color={C.dim}>  ⟦{fold.isOpen ? 'collapse' : 'expand'}⟧</Text>
-        </Box>
-      </Box>
-    )
-    if (!fold.isOpen) return <Box marginTop={GAP}>{head}</Box>
-    const branches = await Promise.all(
-      calls.map((c, n) =>
-        rowOf(
-          $,
-          els,
-          c.tool_use_id ?? `${e.requestId}-${n}`,
-          cardOf(c.tool, c.input, c.output, cwd, home),
-          c,
-          `${n === calls.length - 1 ? G.last : G.branch} `,
-          false,
-        ),
+          <Text bold color={C.accent}>
+            {groupSummary(calls)}
+          </Text>
+        </Button>,
       ),
-    )
-    return (
-      <Box flexDirection="column" marginTop={GAP}>
-        {head}
-        <Box flexDirection="column" paddingLeft={2}>
-          {branches}
-        </Box>
-      </Box>
-    )
+    ]
+    const branches = fold.isOpen
+      ? (
+          await Promise.all(
+            calls.map((c, n) =>
+              branchOf($, els, c.tool_use_id ?? `${e.requestId}-${n}`, cardOf(c.tool, c.input, c.output, cwd, home), c, `${n === calls.length - 1 ? G.last : G.branch} `),
+            ),
+          )
+        ).flat()
+      : []
+    const footer = { more: '', label: fold.isOpen ? 'collapse' : 'expand', onPress: fold.toggle }
+    return <Box marginTop={GAP}>{frameOf(els, 'group', toneOf(status), head, branches.length ? [{ rows: branches }] : [], footer)}</Box>
   })
 }

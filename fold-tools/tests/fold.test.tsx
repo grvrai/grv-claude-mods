@@ -150,6 +150,9 @@ test('the intent instruction is appended to the system prompt once', async ($, o
 test('cards and diff rows summarise each tool', () => {
   const ok = cardOf('Bash', { command: 'ls -la\necho', description: 'List files' }, { stdout: 'a\nb\nc', stderr: '', interrupted: false }, '/repo')
   expect(ok.target).toBe('List files')
+  expect(ok.tint).toBe('bashBorder')
+  expect(cardOf('Edit', { file_path: '/repo/a.py' }, {}, '/repo').tint).toBe('claude')
+  expect(cardOf('mcp__srv__do', { q: 'x' }, {}, '/repo').tint).toBe('claude')
   expect(ok.meta).toEqual(['3 lines'])
   const failed = cardOf('Bash', { command: 'false' }, 'Exit code 1', '/repo')
   expect(failed.body).toMatchObject({ kind: 'shell', command: 'false', output: ['Exit code 1'], isError: true })
@@ -180,4 +183,27 @@ test('cards and intents keep one blank row above them; messages keep the engine 
   const card = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...bash('t9') })
   expect(await card.drawn()).toMatchObject({ type: 'Box', props: { marginTop: 1 } })
   await card.unmount()
+})
+
+test('every card is framed, with ⟦expand⟧ in its bottom rule; prompts get a frame of their own', async $ => {
+  const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...bash('t10') })
+  expect(await textOf(ui)).toContain('╭─── ')
+  expect((await ui.find({ key: 'more-t10' }))?.text).toContain('⟦expand⟧')
+  await ui.press({ key: 'more-t10' })
+  expect(await textOf(ui)).toContain('line 30')
+  await ui.unmount()
+  const grep = await $.ui.mount({
+    plugin: 'fold-tools',
+    surface: 'terminal',
+    ...toolUse('t11', 'Grep', { pattern: 'alpha' }, { mode: 'content', numLines: 2, numFiles: 1, content: 'a.md:1:alpha\na.md:2:alpha' }),
+  })
+  await grep.press({ key: 'fold-t11' })
+  const text = await textOf(grep)
+  expect(text).toContain('│')
+  expect(text).toContain('├─ ')
+  expect(text).toContain('└─ ')
+  await grep.unmount()
+  const prompt = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'UserMessage', props: { text: 'hello', origin: { kind: 'composer' }, isExpanded: false } })
+  expect(await prompt.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'round' } })
+  await prompt.unmount()
 })

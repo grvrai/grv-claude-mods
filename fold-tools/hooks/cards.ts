@@ -13,6 +13,8 @@ export type Body =
 
 export type Card = {
   title: string
+  // The tool's own color: its name always, its icon once the call succeeded.
+  tint: string
   icon: { glyph: string; color: string }
   target: string
   isPath?: boolean
@@ -33,11 +35,12 @@ const ICONS: Record<string, { glyph: string; color: string }> = {
   Bash: { glyph: '❯', color: C.bash },
   Edit: { glyph: '✎', color: C.accent },
   Write: { glyph: '✎', color: C.accent },
-  Read: { glyph: '●', color: C.muted },
+  Read: { glyph: '●', color: C.info },
   Grep: { glyph: '🔍', color: C.info },
   Glob: { glyph: '🔍', color: C.info },
 }
 const DONE = { glyph: G.success, color: C.success }
+const TINTS: Record<string, string> = { Bash: C.bash, Read: C.info, Grep: C.info, Glob: C.info }
 
 const obj = (v: unknown) => (v !== null && typeof v === 'object' ? (v as Record<string, unknown>) : {})
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
@@ -119,7 +122,8 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
   const scope = rel(i.path) && rel(i.path) !== '.' ? ` in ${rel(i.path)}` : ''
   const hunks = (Array.isArray(o.structuredPatch) ? o.structuredPatch : []) as Hunk[]
   const icon = ICONS[tool] ?? DONE
-  const card = ((): Card => {
+  const tint = TINTS[tool] ?? C.accent
+  const card = ((): Omit<Card, 'tint'> => {
     switch (tool) {
       case 'Edit':
         return {
@@ -210,9 +214,9 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
     }
   })()
   // An errored call's output is the error text the model read; a shell keeps its `$ command` above it.
-  if (typeof output !== 'string') return card
+  if (typeof output !== 'string') return { ...card, tint }
   const lines = linesOf(output)
-  return { ...card, body: card.body?.kind === 'shell' ? { ...card.body, output: lines, isError: true } : { kind: 'text', lines, isError: true } }
+  return { ...card, tint, body: card.body?.kind === 'shell' ? { ...card.body, output: lines, isError: true } : { kind: 'text', lines, isError: true } }
 }
 
 export const groupSummary = (calls: ReadonlyArray<{ tool: string }>) => {
