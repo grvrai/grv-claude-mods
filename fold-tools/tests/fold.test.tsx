@@ -165,3 +165,16 @@ test('cards and diff rows summarise each tool', () => {
   expect(pair[0]?.mark).toEqual([10, 11])
   expect(groupSummary([{ tool: 'Read' }, { tool: 'Read' }, { tool: 'Grep' }])).toBe('Read 2 files · searched 1 pattern')
 })
+
+test('messages get a blank row more than the engine gives, intents one more again', async ($, on) => {
+  on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>{e.props.text}</Text>
+  })
+  const plain = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', props: { text: 'Done.', isFirstOfReply: true } })
+  expect(await plain.drawn()).toMatchObject({ type: 'Box', props: { marginTop: 1 } })
+  await plain.unmount()
+  const intent = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', props: { text: '» Reading notes', isFirstOfReply: false } })
+  expect(await intent.drawn()).toMatchObject({ type: 'Box', props: { marginTop: 2 } })
+  await intent.unmount()
+})

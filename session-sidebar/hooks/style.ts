@@ -9,8 +9,6 @@ export const C = {
   error: '#fc3a4b',
   muted: '#777d88',
   dim: '#5f6673',
-  bgPending: '#1d2129',
-  bgCard: '#161a1f',
 }
 
 export const SPINNER = '⣾⣽⣻⢿⡿⣟⣯⣷'

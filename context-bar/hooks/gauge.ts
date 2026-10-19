@@ -1,7 +1,7 @@
 // The live context window: its size, and its fill once a response reported one.
 export type Usage = { tokens?: number; window: number; percent?: number }
 
-// What Claude Code hands a status line command on stdin, the fields the bar reads.
+// The figures the bar reads, in the shape Claude Code's status line JSON uses.
 export type StatusInput = {
   model?: { id?: string; display_name?: string }
   effort?: { level?: string }

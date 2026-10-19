@@ -15,6 +15,8 @@ const CAPS: Record<Body['kind'], number> = { diff: 40, code: 12, shell: 10, text
 const FULL = 400
 const RULE = '─'.repeat(400)
 const INTENT_LINE = /^\s*»\s+(.+?)\s*$/
+// Blank rows added above each message, on top of the engine's one.
+const GAP = 1
 const INTENT = {
   id: 'fold-tools:intent',
   scope: 'session',
@@ -332,25 +334,32 @@ export const register: Register = on => {
     return { sections: [...sections.filter(s => s.id !== INTENT.id), INTENT] }
   })
 
+  // One more blank row than the engine gives above each message; an intent hugs the cards beneath it.
+  on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
+    const { Box } = $.ui.resolve(e)
+    return <Box marginTop={GAP}>{await next(e)}</Box>
+  })
+
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (e.props.isSummary) return next(e)
-    const lines = e.props.text.split('\n')
-    const intents = lines.flatMap(line => INTENT_LINE.exec(line)?.[1] ?? [])
-    if (!intents.length) return next(e)
     const { Box, Text } = $.ui.resolve(e)
+    const lines = e.props.text.split('\n')
+    const intents = e.props.isSummary ? [] : lines.flatMap(line => INTENT_LINE.exec(line)?.[1] ?? [])
+    if (!intents.length) return <Box marginTop={GAP}>{await next(e)}</Box>
     const rest = lines.filter(line => !INTENT_LINE.test(line)).join('\n').trim()
-    const heads = intents.map(text => (
-      <Box marginTop={1}>
-        <Text>
-          <Text color={C.accent}>» </Text>
-          <Text bold>{text}</Text>
-        </Text>
+    const heads = (
+      <Box flexDirection="column" marginTop={GAP + 1}>
+        {intents.map(text => (
+          <Text>
+            <Text color={C.accent}>» </Text>
+            <Text bold>{text}</Text>
+          </Text>
+        ))}
       </Box>
-    ))
-    if (!rest) return <Box flexDirection="column">{heads}</Box>
+    )
+    if (!rest) return heads
     const engine = await next({ ...e, props: { ...e.props, text: rest } })
     return (
-      <Box flexDirection="column">
+      <Box flexDirection="column" marginTop={GAP}>
         {engine}
         {heads}
       </Box>

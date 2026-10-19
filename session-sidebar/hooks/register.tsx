@@ -49,26 +49,20 @@ const ruleOf = (els: Els, left: string, section: Section | undefined, right: str
   )
 }
 
-// One card around whatever there is: each section's label set into the rule above its rows.
-const cardOf = (els: Els, sections: Section[]) => {
+// A section's own card: its label set into the top rule, its rows between rails.
+const cardOf = (els: Els, section: Section) => {
   const { Box, Text } = els
+  const rail = Array.from({ length: section.rows.length }, () => '│').join('\n')
   return (
     <Box flexDirection="column">
-      {sections.map((section, n) => {
-        const rail = Array.from({ length: section.rows.length }, () => '│').join('\n')
-        return (
-          <Box flexDirection="column">
-            {ruleOf(els, n ? '├─ ' : '╭─ ', section, n ? '┤' : '╮')}
-            <Box>
-              {fixed(els, <Text color={C.dim}>{rail}</Text>)}
-              <Box flexDirection="column" flexGrow={1} width={0} paddingX={1} overflow="hidden" backgroundColor={C.bgCard}>
-                {section.rows}
-              </Box>
-              {fixed(els, <Text color={C.dim}>{rail}</Text>)}
-            </Box>
-          </Box>
-        )
-      })}
+      {ruleOf(els, '╭─ ', section, '╮')}
+      <Box>
+        {fixed(els, <Text color={C.dim}>{rail}</Text>)}
+        <Box flexDirection="column" flexGrow={1} width={0} paddingX={1} overflow="hidden">
+          {section.rows}
+        </Box>
+        {fixed(els, <Text color={C.dim}>{rail}</Text>)}
+      </Box>
       {ruleOf(els, '╰', undefined, '╯')}
     </Box>
   )
@@ -86,7 +80,7 @@ const subagentsOf = (els: Els, $: EngineInterface, list: Sub[], viewing: string 
     const indent = s.parentId ? '  ' : ''
     const room = width - indent.length - s.type.length - time.length - 4
     return (
-      <Box height={1} justifyContent="space-between" backgroundColor={isViewed ? C.bgPending : undefined}>
+      <Box height={1} justifyContent="space-between">
         <Button key={`agent-${s.id}`} plain onPress={() => $.ui.view({ agentId: s.id })}>
           <Text color={mark.color}>
             {indent}
@@ -360,7 +354,9 @@ export const register: Register = on => {
       ...(touched.length ? [filesOf(els, $, touched, seen.length, cwd, width)] : []),
     ]
     return sections.length ? (
-      cardOf(els, sections)
+      <Box flexDirection="column" gap={1}>
+        {sections.map(section => cardOf(els, section))}
+      </Box>
     ) : (
       <Box>
         <Text color={C.dim} italic>
