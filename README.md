@@ -1,119 +1,80 @@
 # grv-claude-mods
 
-Claude Code mods (function-hook plugins) that redraw the terminal UI in the style and dark palette of [oh-my-pi](https://github.com/can1357/oh-my-pi).
-
-Built against Claude Code 2.1.303. The mod API is early access and may change between releases.
-
-## Mods
-
-### fold-tools
-
-Every tool call is one line, oh-my-pi style: its icon, name, target and counts. Folded (the default):
+Four small mods that make Claude Code's terminal easier to read, in the look and dark palette of [oh-my-pi](https://github.com/can1357/oh-my-pi).
 
 ```
-» Reading notes.md and app.py
-• Read 2 files
-  ├─ ● Read: notes.md  6 lines
-  └─ ● Read: app.py  3 lines
-» Counting to five
-❯ Bash: Count to five  5 lines
-✎ Edit: out.txt ⟦+1/-1⟧
+╭──────────────────────────────────────────────────────────────╮
+│ ❯ fix the login test                                2:40 AM ✓ │
+╰──────────────────────────────────────────────────────────────╯
+» Reading the test file
+● Read: tests/login.test.ts  48 lines
+» Fixing the assertion
+✎ Edit: tests/login.test.ts ⟦+1/-1⟧
+╭──────────────────────────────────────────────────────────────╮
+│ ⏺ Fixed: the test expected the old redirect path.     2:41 AM │
+╰──────────────────────────────────────────────────────────────╯
+
+  ⟦☰⟧ ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━ 57% 570k ────── 1M ─ › 5h 40% · 7d 12% ⟦◨⟧ ⟦⊟⟧
 ```
 
-Click a call's icon and name to unfold it; its output hangs beneath on a rail:
+## The mods
 
-```
-❯ Bash: Count to five  5 lines
-  │ $ seq 1 5
-  ├─ Output
-  │ 1
-  │ …
-  └ ⟦collapse⟧
-```
+| Mod | What you get |
+| --- | --- |
+| **fold-tools** | Every tool call is one tidy line; click it to see the output or diff. Claude writes a short `» intent` above its calls. Your messages and Claude's are framed and timestamped, and your prompt shows `◴` while queued, `✓` once sent. |
+| **turn-questions** | Every question Claude asked in a turn, collected in one framed list above the prompt, so none get lost. |
+| **session-sidebar** | A sidebar with subagents, todos and changed files. It appears only when there is something to show; `/sidebar` toggles it. |
+| **context-bar** | A bar under the prompt: model, effort, a context gauge with percent and tokens, rate limits, plus buttons for the agents list `⟦☰⟧`, the sidebar `⟦◨⟧` and compact `⟦⊟⟧`. |
 
-- An unfolded call shows up to 10 lines of shell output (its tail), 40 diff lines or 12 lines of code or text; `⟦show all⟧` lifts the cap and `⟦collapse⟧` folds it back. `/fold open|close` opens or closes every call.
-- A running call's icon is a 2x2 braille spinner (`⠴⠦⠖⠲`); the rail is dim when a call succeeded, amber while it runs and red when it failed. Tool names are oh-my-pi's amber.
-- Diffs use oh-my-pi's gutter (`-113│`), whole-line color and inverted changed words. Grep and Glob hang matches on `├─`/`└─` branches; a group of several calls is a line with a branch per call, each unfolding under it.
-- Messages are framed, with the time each was sent at the right of its first line (`2:40 AM`, the date too once it is not today's): Claude's replies in a dim frame under the `⏺` bullet, your own prompts in a blue one with a `❯` icon and, after the time, their submission status: an animated `◴◷◶◵` clock while the prompt is queued behind a running turn, then `✓` once the engine hands it to Claude (at its next request, mid-turn included). A prompt pushed in early with ctrl+x ctrl+s reads queued until that request.
-- The times are stamped as each row is stored; for rows from before (a resumed session, or after `/reload-plugins`) they are read from the session's transcript file, its last 4 MB when the file is bigger.
-- Adds one system-prompt section asking Claude to write `» <intent>` (a 2–6-word present-participle phrase) before each tool call; that line is drawn as a bold heading above the calls.
-- Spacing: one blank row above every call, group and intent, as Claude Code spaces the rows it draws itself.
-- Left to Claude Code's own drawing: `AskUserQuestion` (see turn-questions) and `Agent` rows.
-
-### turn-questions
-
-- While a multi-question `AskUserQuestion` dialog is open, a frame above it lists every question at once.
-- Once answered, the transcript row becomes a framed `? Ask` card with each answer on a `↳` line.
-- When a turn ends, a band above the prompt collects every question of that turn: the answered dialog questions, plus the questions Claude wrote in its reply (`○`). It hides while Claude works, is replaced at the end of the next turn, and `✕` dismisses it.
-
-### session-sidebar
-
-A docked sidebar (`Session`) on the right, with a rounded card for each of subagents, todos and changed files that has something to show.
-
-```
-╭─ TODOS · 1/2 ─────────────────╮
-│ ○ Style the cards             │
-│ ✔ Build the bar               │
-╰───────────────────────────────╯
-
-╭─ FILES · 1 changed ───────────╮
-│ A out.txt                  +3 │
-╰───────────────────────────────╯
-```
-
-- **SUBAGENTS**: each subagent's type, task, status and run time. Click one to show its transcript; `← back to main` returns.
-- **TODOS**: live from `TaskCreate`/`TaskUpdate`/`TodoWrite`, seeded from `TaskList` on the first turn.
-- **FILES**: files edited (`M`) or created (`A`) with `+N -M` counts, plus how many files were read. Click a path to copy it.
-
-It opens by itself once a subagent, todo or changed file exists, closes when none is left, and only where the terminal docks panes (fullscreen, 110+ columns), asking for 34 columns. Closing it (`✕` or `/sidebar`) keeps it closed until `/sidebar` opens it again. The divider and the dock area are Claude Code's own; a dock width you have dragged is kept (`pluginPanes.dockColumns` in `~/.claude.json`) and wins over the request.
-
-### context-bar
-
-oh-my-pi's bar in the row under the prompt, across the full width of the window: the model and effort level, a rule that is the context gauge, the rate-limit windows, and three buttons.
-
-```
-❯ _
-───────────────────────────────────────────────────────────────────────────────────
-  ⏵⏵ bypass permissions on (shift+tab to cycle)
-  ⟦☰⟧ ⬢ Opus 5.5 · ◕ xhigh › ◫ ━━━━━━━━━ 57% 570k ────── 1M ─ › 5h 40% · 7d 12% ⟦◨⟧ ⟦⊟⟧
-```
-
-- The rule fills whatever width the window has and follows it as the window resizes; its lit share is the context used, its percent and token count set right after it, the window size at the end. It turns yellow, purple and red at oh-my-pi's thresholds (50/70/90%, or 150k/270k/500k tokens, whichever comes first); the rate-limit windows color the same way.
-- `⟦☰⟧` runs `/background`: the session keeps running and the terminal shows the agents list, as `←` at an empty prompt does.
-- `⟦◨⟧` shows or hides the session sidebar, as `/sidebar` does (needs session-sidebar).
-- `⟦⊟⟧` compacts the conversation, as `/compact` does; it rests while Claude is working.
-- Model and effort come from each model request; before the first, the model is the session's and effort is `effortLevel` from settings. `/model` and `/effort` refresh them.
-
-## Requirements
-
-- Clicking cards and sidebar rows needs a terminal that reports the mouse, which is the fullscreen TUI (`"tui": "fullscreen"`).
-- Colors are oh-my-pi's dark palette (amber accent, cyan-blue gauge, blue frames), tuned for dark terminal themes.
+Handy: `/fold open` / `/fold close` unfolds or folds every tool call at once.
 
 ## Install
 
-At the prompt of a Claude Code terminal session:
+Copy this prompt and paste it into Claude Code:
 
+```text
+Install the Claude Code mods from https://github.com/grvrai/grv-claude-mods for me:
+
+1. Add the marketplace: claude plugin marketplace add grvrai/grv-claude-mods
+2. Install all four mods (user scope):
+   claude plugin install fold-tools@grv-claude-mods
+   claude plugin install turn-questions@grv-claude-mods
+   claude plugin install session-sidebar@grv-claude-mods
+   claude plugin install context-bar@grv-claude-mods
+3. Clicking cards needs the fullscreen terminal UI. Check ~/.claude/settings.json for "tui": "fullscreen" and, if it is missing, ask me before adding it.
+4. context-bar shows context and rate limits under the prompt. If I already have a "statusLine" in my settings, ask me whether to keep it.
+5. If the repo cannot be read (it is private), tell me to get access and run `gh auth login`, then `gh auth setup-git`.
+6. When done, tell me to run /reload-plugins in any open session.
 ```
-/plugin install fold-tools --marketplace grvrai/grv-claude-mods
-/plugin install turn-questions --marketplace grvrai/grv-claude-mods
-/plugin install session-sidebar --marketplace grvrai/grv-claude-mods
-/plugin install context-bar --marketplace grvrai/grv-claude-mods
+
+Or by hand, in a shell:
+
+```sh
+claude plugin marketplace add grvrai/grv-claude-mods
+for m in fold-tools turn-questions session-sidebar context-bar; do claude plugin install $m@grv-claude-mods; done
 ```
 
-After `claude plugin update`, run `/reload-plugins` in each open session to load the new versions; new sessions load them by themselves.
+Then run `/reload-plugins` in any open session (new sessions pick the mods up by themselves).
 
-Answer `y` to add the marketplace, then pick a scope. From a shell:
+## Update
 
+```sh
+claude plugin marketplace update grv-claude-mods
+for m in fold-tools turn-questions session-sidebar context-bar; do claude plugin update $m@grv-claude-mods; done
 ```
-claude plugin install fold-tools --marketplace grvrai/grv-claude-mods
-```
 
-This repository is private. Installing it needs read access on GitHub and a git credential for github.com on that machine (an SSH key, or `gh auth login` then `gh auth setup-git`).
+Then `/reload-plugins` again.
+
+## Good to know
+
+- Needs a recent Claude Code (built against 2.1.303). The mod API is early access, so a Claude Code update can change things.
+- Colors are tuned for dark terminal themes.
+- The repo is private: installing needs read access on GitHub and a git credential on the machine.
 
 ## Develop
 
-```
-claude plugin validate ./fold-tools
-claude plugin test ./fold-tools
-claude --plugin-dir ./fold-tools
+```sh
+claude plugin validate ./fold-tools   # check a mod
+claude plugin test ./fold-tools       # run its tests
+claude --plugin-dir ./fold-tools      # try it live without installing
 ```
