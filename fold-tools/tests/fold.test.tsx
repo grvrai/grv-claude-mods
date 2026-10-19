@@ -1,5 +1,5 @@
 import type { PromptComposeInput } from 'claude-code'
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 import { cardOf, diffRows, groupSummary } from '../hooks/cards'
 
@@ -33,7 +33,7 @@ const group = (calls: ReturnType<typeof read>[]) =>
 const textOf = async (ui: { findAll: (q: { type: string }) => Promise<{ text: string }[]> }) =>
   (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
 
-test('a folded edit is its title line alone and unfolds into a framed diff', async $ => {
+test('a folded edit is its title line alone and unfolds into a diff on a rail', async $ => {
   const ui = await $.ui.mount({
     plugin: 'fold-tools',
     surface: 'terminal',
@@ -49,7 +49,7 @@ test('a folded edit is its title line alone and unfolds into a framed diff', asy
   expect(text).not.toContain('│')
   await ui.press({ key: 'fold-t1' })
   text = await textOf(ui)
-  expect(text).toContain('╭ ')
+  expect(text).toContain('└ ')
   expect(text).toContain('-  4│old value')
   expect(text).toContain('+   │new value')
   expect((await ui.find({ key: 'more-t1' }))?.text).toContain('⟦collapse⟧')
@@ -68,7 +68,7 @@ test('a bash card unfolds to its tail, then ⟦show all⟧, then ⟦collapse⟧ 
   expect(text).toContain('Output')
   expect(text).toContain('line 21')
   expect(text).not.toContain('line 20\n')
-  expect((await ui.find({ key: 'more-t2' }))?.text).toBe(' … 20 more earlier lines ⟦show all⟧ ')
+  expect((await ui.find({ key: 'more-t2' }))?.text).toBe('… 20 more earlier lines ⟦show all⟧')
   await ui.press({ key: 'more-t2' })
   expect(await textOf(ui)).toContain('line 1\n')
   expect((await ui.find({ key: 'more-t2' }))?.text).toContain('⟦collapse⟧')
@@ -182,12 +182,15 @@ test('cards and intents keep one blank row above them; messages keep the engine 
   await card.unmount()
 })
 
-test('every card is framed, with ⟦expand⟧ in its bottom rule; prompts get a frame of their own', async $ => {
+test('a folded card is one line; unfolded output hangs on a rail; prompts get a frame of their own', async $ => {
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...bash('t10') })
-  expect(await textOf(ui)).toContain('╭ ')
-  expect((await ui.find({ key: 'more-t10' }))?.text).toContain('⟦expand⟧')
-  await ui.press({ key: 'more-t10' })
-  expect(await textOf(ui)).toContain('line 30')
+  let text = await textOf(ui)
+  expect(text).not.toContain('╭')
+  expect(await ui.find({ key: 'more-t10' })).toBeUndefined()
+  await ui.press({ key: 'fold-t10' })
+  text = await textOf(ui)
+  expect(text).toContain('line 30')
+  expect(text).toContain('│')
   await ui.unmount()
   const grep = await $.ui.mount({
     plugin: 'fold-tools',
@@ -195,7 +198,7 @@ test('every card is framed, with ⟦expand⟧ in its bottom rule; prompts get a 
     ...toolUse('t11', 'Grep', { pattern: 'alpha' }, { mode: 'content', numLines: 2, numFiles: 1, content: 'a.md:1:alpha\na.md:2:alpha' }),
   })
   await grep.press({ key: 'fold-t11' })
-  const text = await textOf(grep)
+  text = await textOf(grep)
   expect(text).toContain('│')
   expect(text).toContain('├─ ')
   expect(text).toContain('└─ ')
@@ -213,11 +216,38 @@ test('a prompt typed over a running turn reads queued, then sent once a later tu
   let ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...prompt })
   let text = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
   expect(text).toContain('❯')
-  expect(text).toContain('◷ queued')
+  expect(text).toMatch(/[◴◷◶◵]/)
   await ui.unmount()
   await $.turn.start({ text: 'and then say done', turnId: 't2' })
   ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...prompt })
   text = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
-  expect(text).toContain('✓ sent')
+  expect(text).toContain('✓')
+  expect(text).not.toMatch(/[◴◷◶◵]/)
+  await ui.unmount()
+})
+
+test('a running card spins while the call is in flight', async ($, on) => {
+  const clock = mock.clock(on)
+  // The call stays in flight until the test lets it finish.
+  let finish = () => {}
+  const held = new Promise<void>(resolve => {
+    finish = resolve
+  })
+  on('tool.call', { tool: 'Bash' }, async () => {
+    await held
+    return { result: { stdout: 'hi', stderr: '', interrupted: false } }
+  })
+  const running = { ...bash('t12'), props: { ...bash('t12').props, isRunning: true, output: undefined } }
+  const call = $.tool.call({ tool: 'Bash', command: 'sleep 1', description: 'Wait' })
+  const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...running })
+  const glyph = async () => (await ui.find({ key: 'fold-t12' }))?.text.charAt(0)
+  const first = await glyph()
+  expect('⣾⣽⣻⢿⡿⣟⣯⣷').toContain(first ?? '?')
+  await clock.advance(240)
+  await clock.settle()
+  await ui.redraw()
+  expect(await glyph()).not.toBe(first)
+  finish()
+  await call
   await ui.unmount()
 })

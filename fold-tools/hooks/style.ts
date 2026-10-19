@@ -9,6 +9,10 @@ export const C = {
   user: '#178fb9',
 }
 
+// oh-my-pi's braille spinner, and a clock for a prompt waiting its turn.
+export const SPINNER = '⣾⣽⣻⢿⡿⣟⣯⣷'
+export const CLOCK = '◴◷◶◵'
+
 export const G = { success: '✔', error: '✘', pending: '⏳', aborted: '⏹', bullet: '•', branch: '├─', last: '└─' }
 
 export type Status = { isRunning: boolean; isErrored: boolean; isInterrupted: boolean }

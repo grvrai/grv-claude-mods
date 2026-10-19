@@ -5,6 +5,6 @@ export type Queued = { text: string; turnId: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    'fold-tools': { mode: Fold; rows: StateFamily<Fold>; queued: Queued[] }
+    'fold-tools': { mode: Fold; rows: StateFamily<Fold>; queued: Queued[]; tick: number }
   }
 }

@@ -8,43 +8,35 @@ Built against Claude Code 2.1.303. The mod API is early access and may change be
 
 ### fold-tools
 
-Every tool call is an oh-my-pi card: its title set into the top rule, its controls in the bottom rule, both lined up with the text of the messages around them. Folded (the default), a card is just its frame:
+Every tool call is one line, oh-my-pi style: its icon, name, target and counts. Folded (the default):
 
 ```
+» Reading notes.md and app.py
+• Read 2 files
+  ├─ ● Read: notes.md  6 lines
+  └─ ● Read: app.py  3 lines
 » Counting to five
-
-╭ ❯ Bash: Count to five  5 lines ──────────────────────────╮
-╰ ⟦expand⟧ ────────────────────────────────────────────────╯
-
-╭ • Read 2 files ─────────────────────────────────────────────╮
-│ ├─ ● Read: notes.md  6 lines                               │
-│ └─ ● Read: app.py  3 lines                                 │
-╰ ⟦collapse⟧ ─────────────────────────────────────────────────╯
+❯ Bash: Count to five  5 lines
+✎ Edit: out.txt ⟦+1/-1⟧
 ```
 
-Unfolded, its body sits inside the frame:
+Click a call's icon and name to unfold it; its output hangs beneath on a rail:
 
 ```
-╭ ❯ Bash: Count to thirty  30 lines ─────────────────────────╮
-│ $ seq 1 30                                                 │
-├ Output ─────────────────────────────────────────────────────┤
-│ 21                                                         │
-│ …                                                          │
-╰ … 20 more earlier lines ⟦show all⟧ ─────────────────────────╯
+❯ Bash: Count to five  5 lines
+  │ $ seq 1 5
+  ├─ Output
+  │ 1
+  │ …
+  └ ⟦collapse⟧
 ```
 
-- Click a card's title or its `⟦expand⟧` to unfold it. An unfolded card shows up to 10 lines of shell output (its tail), 40 diff lines or 12 lines of code or text; `⟦show all⟧` lifts the cap and `⟦collapse⟧` folds it back. `/fold open|close` opens or closes every card.
-- Tool names are oh-my-pi's amber; frames are dim gray, orange while a call runs and red when it failed.
-- Diffs use oh-my-pi's gutter (`-113│`), whole-line color and inverted changed words. Grep and Glob hang matches on `├─`/`└─` branches; a group of several calls is one frame with a branch per call, each unfolding inside it.
-- Your own prompts sit in a rounded blue frame with a `❯` icon and their submission status: `◷ queued` while Claude is busy, then `✓ sent` once the engine hands the prompt to Claude (at its next request, mid-turn included). A prompt pushed in early with ctrl+x ctrl+s reads queued until the next request.
-
-  ```
-  ╭──────────────────────────────────────────────────────────╮
-  │ ❯ and then say done                             ◷ queued │
-  ╰──────────────────────────────────────────────────────────╯
-  ```
-- Adds one system-prompt section asking Claude to write `» <intent>` (a 2–6-word present-participle phrase) before each tool call; that line is drawn as a bold heading above the cards.
-- Spacing: one blank row above every card, group and intent, as Claude Code spaces the rows it draws itself.
+- An unfolded call shows up to 10 lines of shell output (its tail), 40 diff lines or 12 lines of code or text; `⟦show all⟧` lifts the cap and `⟦collapse⟧` folds it back. `/fold open|close` opens or closes every call.
+- A running call's icon is oh-my-pi's braille spinner; the rail is dim when a call succeeded, amber while it runs and red when it failed. Tool names are oh-my-pi's amber.
+- Diffs use oh-my-pi's gutter (`-113│`), whole-line color and inverted changed words. Grep and Glob hang matches on `├─`/`└─` branches; a group of several calls is a line with a branch per call, each unfolding under it.
+- Your own prompts sit in a rounded blue frame with a `❯` icon and their submission status: an animated `◴◷◶◵` clock while the prompt is queued behind a running turn, then `✓` once the engine hands it to Claude (at its next request, mid-turn included). A prompt pushed in early with ctrl+x ctrl+s reads queued until that request.
+- Adds one system-prompt section asking Claude to write `» <intent>` (a 2–6-word present-participle phrase) before each tool call; that line is drawn as a bold heading above the calls.
+- Spacing: one blank row above every call, group and intent, as Claude Code spaces the rows it draws itself.
 - Left to Claude Code's own drawing: `AskUserQuestion` (see turn-questions) and `Agent` rows.
 
 ### turn-questions

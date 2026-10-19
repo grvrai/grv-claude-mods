@@ -1,9 +1,9 @@
 import { atom, memberOf, read, update } from 'claude-code'
-import type { ElementTable, EngineInterface, Register, RenderChildren } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, RenderChildren, Timer } from 'claude-code'
 
 import { cardOf, diffRows, groupSummary } from './cards'
 import type { Body, Card, DiffRow } from './cards'
-import { C, FRAME, G, iconOf, toneOf } from './style'
+import { C, CLOCK, FRAME, G, iconOf, SPINNER, toneOf } from './style'
 import type { Status, Tone } from './style'
 
 // Left to the engine (turn-questions draws AskUserQuestion; Agent rows stream progress).
@@ -13,7 +13,8 @@ const OWN = new Set(['Edit', 'Write', 'Read', 'Bash', 'Grep', 'Glob', 'WebFetch'
 // Body rows an unfolded card shows, as oh-my-pi's expanded PREVIEW_LIMITS; ⟦show all⟧ lifts it to FULL.
 const CAPS: Record<Body['kind'], number> = { diff: 40, code: 12, shell: 10, text: 12, tree: 24 }
 const FULL = 400
-const RULE = '─'.repeat(400)
+// The spinner's frame length.
+const FRAME_MS = 120
 const INTENT_LINE = /^\s*»\s+(.+?)\s*$/
 // One blank row above each card, as the engine gives the tool rows it draws itself.
 const GAP = 1
@@ -30,6 +31,7 @@ const INTENT = {
 const mode = atom({ plugin: 'fold-tools', key: 'mode' } as const, { gen: 0, isOpen: false })
 const rows = atom({ plugin: 'fold-tools', key: 'rows' } as const, { gen: -1, isOpen: false })
 const queued = atom({ plugin: 'fold-tools', key: 'queued' } as const, [])
+const tick = atom({ plugin: 'fold-tools', key: 'tick' } as const, 0)
 
 type Els = Pick<ElementTable, 'Box' | 'Text' | 'Code' | 'Button'>
 type Fold = Awaited<ReturnType<typeof foldOf>>
@@ -41,6 +43,18 @@ type Footer = Control | undefined
 
 let cwd = ''
 let home = ''
+// Tool calls in flight; the ticker runs only while one is, or while a prompt waits.
+let active = 0
+let ticker: Timer | undefined
+
+const animate = async ($: EngineInterface) => {
+  const isLive = active > 0 || (await read($, queued)).length > 0
+  if (isLive && !ticker) ticker = $.clock.every(FRAME_MS, () => void update($, tick, n => n + 1))
+  if (!isLive && ticker) {
+    ticker.cancel()
+    ticker = undefined
+  }
+}
 
 // A row follows the last /fold (or `fallback`) until it is clicked under that same /fold.
 const foldOf = async ($: EngineInterface, e: { requestId: string }, fallback?: boolean) => {
@@ -58,19 +72,13 @@ const foldOf = async ($: EngineInterface, e: { requestId: string }, fallback?: b
   }
 }
 
-// Pieces of a one-row layout: fixed ones keep their width, the target truncates, the rule fills what is left.
+// Pieces of a one-row layout: fixed ones keep their width, the target truncates.
 const fixed = ({ Box }: Els, node: RenderChildren) => <Box flexShrink={0}>{node}</Box>
 
-const fillOf = ({ Box, Text }: Els, color: string) => (
-  <Box flexGrow={1} width={0} height={1} overflow="hidden">
-    <Text color={color}>{RULE}</Text>
-  </Box>
-)
-
 // oh-my-pi's header: `icon Title: target ⟦+N/-M⟧  meta · meta`; icon and title toggle the card.
-const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold) => {
+const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame = 0) => {
   const { Box, Button, Text } = els
-  const icon = iconOf(s, card.icon)
+  const icon = s.isRunning ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: C.accent } : iconOf(s, card.icon)
   const badge = card.badge && (card.badge.add || card.badge.del) ? card.badge : undefined
   const meta = [...card.meta, ...(s.isInterrupted ? ['interrupted'] : [])]
   return [
@@ -209,97 +217,76 @@ const footerOf = (shown: Shown, fold: Fold): Control =>
     ? { more: `… ${shown.hidden} more ${shown.unit} `, label: 'show all', onPress: fold.showAll }
     : { more: '', label: 'collapse', onPress: fold.toggle }
 
-// oh-my-pi's output block: the header set into the top rule, rails, labelled dividers, the footer in the bottom rule.
-const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], sections: Section[], footer: Footer) => {
+// An unfolded body beneath its header: rows on a left rail in the card's state color, the footer control at its foot.
+const railOf = (els: Els, id: string, tone: Tone, sections: Section[], footer: Footer) => {
   const { Box, Button, Text } = els
-  const border = FRAME[tone]
-  const edge = (text: string) => fixed(els, <Text color={border}>{text}</Text>)
-  const rule = (left: RenderChildren[], right: string) => (
-    <Box height={1}>
-      {left}
-      {fillOf(els, border)}
-      {edge(right)}
-    </Box>
-  )
+  const color = FRAME[tone]
   return (
-    <Box flexDirection="column">
-      {rule([edge('╭ '), ...head, edge(' ')], '╮')}
+    <Box flexDirection="column" marginLeft={2}>
       {sections.map(section => {
-        if ('divider' in section) return rule([edge('├ '), fixed(els, <Text color={C.muted}>{section.divider} </Text>)], '┤')
+        if ('divider' in section) {
+          return (
+            <Text>
+              <Text color={color}>├─ </Text>
+              <Text color={C.muted}>{section.divider}</Text>
+            </Text>
+          )
+        }
         const height = section.rows.reduce((n, r) => n + r.height, 0)
-        const rail = Array.from({ length: height }, () => '│').join('\n')
         return (
           <Box>
-            {edge(rail)}
-            <Box flexDirection="column" flexGrow={1} width={0} paddingX={1} overflow="hidden">
+            {fixed(els, <Text color={color}>{Array.from({ length: height }, () => '│').join('\n')}</Text>)}
+            <Box flexDirection="column" flexGrow={1} width={0} paddingLeft={1} overflow="hidden">
               {section.rows.map(r => r.node)}
             </Box>
-            {edge(rail)}
           </Box>
         )
       })}
-      {rule(
-        [
-          edge('╰'),
-          ...(footer
-            ? [
-                fixed(
-                  els,
-                  <Button key={`more-${id}`} plain onPress={footer.onPress}>
-                    <Text color={C.dim}> {footer.more}</Text>
-                    <Text color={C.muted}>⟦{footer.label}⟧ </Text>
-                  </Button>,
-                ),
-              ]
-            : []),
-        ],
-        '╯',
+      {footer && (
+        <Box height={1}>
+          {fixed(els, <Text color={color}>└ </Text>)}
+          <Button key={`more-${id}`} plain onPress={footer.onPress}>
+            <Text color={C.dim}>{footer.more}</Text>
+            <Text color={C.muted}>⟦{footer.label}⟧</Text>
+          </Button>
+        </Box>
       )}
     </Box>
   )
 }
 
-// Every card is framed: folded, its title in the top rule and ⟦expand⟧ in the bottom one; unfolded, its body between.
+// Only a running card reads the tick, so a finished one never redraws for it.
+const spinOf = async ($: EngineInterface, isRunning: boolean) => (isRunning ? read($, tick) : 0)
+
+// One card: a single header line, folded; unfolded, its body on a rail beneath.
 const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, hasEngineBody: boolean) => {
+  const { Box } = els
   const fold = await foldOf($, { requestId: id })
+  const head = headerOf(els, id, card, s, fold, await spinOf($, s.isRunning))
   const canOpen = !s.isRunning && (card.body !== undefined || hasEngineBody)
   const shown = canOpen && fold.isOpen && card.body ? shownOf(els, card.body, fold) : undefined
-  const footer = shown ? footerOf(shown, fold) : canOpen ? { more: '', label: fold.isOpen ? 'collapse' : 'expand', onPress: fold.toggle } : undefined
-  return frameOf(els, id, toneOf(s), headerOf(els, id, card, s, fold), shown?.sections ?? [], footer)
+  return (
+    <Box flexDirection="column">
+      <Box height={1}>{head}</Box>
+      {shown && railOf(els, id, toneOf(s), shown.sections, footerOf(shown, fold))}
+    </Box>
+  )
 }
 
-// One call of a group, as rows inside the group's frame: its branch line, and its body indented beneath once unfolded.
-const branchOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, lead: string): Promise<Row[]> => {
-  const { Box, Button, Text } = els
+// One call of a group: its branch line, and its body indented beneath once unfolded.
+const branchOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, lead: string) => {
+  const { Box, Text } = els
   const fold = await foldOf($, { requestId: id })
-  const top = {
-    node: (
+  const shown = !s.isRunning && fold.isOpen && card.body ? shownOf(els, card.body, fold) : undefined
+  return (
+    <Box flexDirection="column">
       <Box height={1}>
         {fixed(els, <Text color={C.dim}>{lead}</Text>)}
-        {headerOf(els, id, card, s, fold)}
+        {headerOf(els, id, card, s, fold, await spinOf($, s.isRunning))}
       </Box>
-    ),
-    height: 1,
-  }
-  if (s.isRunning || !fold.isOpen || !card.body) return [top]
-  const shown = shownOf(els, card.body, fold)
-  const footer = footerOf(shown, fold)
-  const indent = (node: RenderChildren) => <Box paddingLeft={3}>{node}</Box>
-  const body = shown.sections.flatMap((section): Row[] =>
-    'divider' in section
-      ? [{ node: indent(<Text color={C.dim}>─ {section.divider} ─</Text>), height: 1 }]
-      : section.rows.map(r => ({ node: indent(r.node), height: r.height })),
+      {shown && <Box marginLeft={3}>{railOf(els, id, toneOf(s), shown.sections, footerOf(shown, fold))}</Box>}
+    </Box>
   )
-  const foot = {
-    node: indent(
-      <Button key={`more-${id}`} plain onPress={footer.onPress}>
-        <Text color={C.dim}>{footer.more}</Text>
-        <Text color={C.muted}>⟦{footer.label}⟧</Text>
-      </Button>,
-    ),
-    height: 1,
-  }
-  return [top, ...body, foot]
 }
 
 export const register: Register = on => {
@@ -360,6 +347,7 @@ export const register: Register = on => {
     if (e.turnId && !e.command && !e.isMeta && !('drop' in sent)) {
       const entry = { text: e.text, turnId: e.turnId }
       await update($, queued, list => [...list, entry].slice(-50))
+      await animate($)
     }
     return sent
   })
@@ -367,14 +355,31 @@ export const register: Register = on => {
   on('turn.start', async ($, e, next) => {
     if (!e.agentId && (await read($, queued)).length) {
       await update($, queued, list => list.filter(q => q.turnId === e.turnId && q.text !== e.text))
+      await animate($)
     }
     return next(e)
   })
 
   // The engine hands queued prompts to the model with its next request, mid-turn included.
   on('turn.step', async function* ($, e, next) {
-    if (!e.agentId && (await read($, queued)).length) await update($, queued, () => [])
+    if (!e.agentId && (await read($, queued)).length) {
+      await update($, queued, () => [])
+      await animate($)
+    }
     return yield* next(e)
+  })
+
+  // Counts the calls in flight, so the ticker runs while any card is animating.
+  on('tool.call', async ($, e, next) => {
+    if (SKIP.has(e.tool)) return next(e)
+    active += 1
+    await animate($)
+    try {
+      return await next(e)
+    } finally {
+      active -= 1
+      await animate($)
+    }
   })
 
   // The person's own prompts in a blue frame: a prompt icon before the text, its submission status after it.
@@ -382,6 +387,7 @@ export const register: Register = on => {
     if (e.props.origin.kind !== 'composer') return next(e)
     const { Box, Text } = $.ui.resolve(e)
     const isQueued = (await read($, queued)).some(q => q.text === e.props.text)
+    const frame = isQueued ? await read($, tick) : 0
     return (
       <Box borderStyle="round" borderColor={C.user} paddingX={1}>
         <Box flexShrink={0}>
@@ -393,7 +399,7 @@ export const register: Register = on => {
           <Text>{e.props.text}</Text>
         </Box>
         <Box flexShrink={0}>
-          <Text color={isQueued ? C.warning : C.dim}>  {isQueued ? '◷ queued' : '✓ sent'}</Text>
+          <Text color={isQueued ? C.warning : C.success}>  {isQueued ? CLOCK[frame % CLOCK.length] : '✓'}</Text>
         </Box>
       </Box>
     )
@@ -432,28 +438,29 @@ export const register: Register = on => {
       isErrored: calls.some(c => c.isErrored),
       isInterrupted: calls.some(c => c.isInterrupted),
     }
-    const icon = iconOf(status, { glyph: G.bullet, color: C.success })
-    const head = [
-      fixed(
-        els,
-        <Button key="fold-group" plain onPress={fold.toggle}>
-          <Text color={icon.color}>{icon.glyph} </Text>
-          <Text bold color={C.accent}>
-            {groupSummary(calls)}
-          </Text>
-        </Button>,
-      ),
-    ]
+    const frame = await spinOf($, status.isRunning)
+    const icon = status.isRunning ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: C.accent } : iconOf(status, { glyph: G.bullet, color: C.success })
     const branches = fold.isOpen
-      ? (
-          await Promise.all(
-            calls.map((c, n) =>
-              branchOf($, els, c.tool_use_id ?? `${e.requestId}-${n}`, cardOf(c.tool, c.input, c.output, cwd, home), c, `${n === calls.length - 1 ? G.last : G.branch} `),
-            ),
-          )
-        ).flat()
+      ? await Promise.all(
+          calls.map((c, n) =>
+            branchOf($, els, c.tool_use_id ?? `${e.requestId}-${n}`, cardOf(c.tool, c.input, c.output, cwd, home), c, `${n === calls.length - 1 ? G.last : G.branch} `),
+          ),
+        )
       : []
-    const footer = { more: '', label: fold.isOpen ? 'collapse' : 'expand', onPress: fold.toggle }
-    return <Box marginTop={GAP}>{frameOf(els, 'group', toneOf(status), head, branches.length ? [{ rows: branches }] : [], footer)}</Box>
+    return (
+      <Box flexDirection="column" marginTop={GAP}>
+        <Box height={1}>
+          <Button key="fold-group" plain onPress={fold.toggle}>
+            <Text color={icon.color}>{icon.glyph} </Text>
+            <Text bold color={C.accent}>
+              {groupSummary(calls)}
+            </Text>
+          </Button>
+        </Box>
+        <Box flexDirection="column" paddingLeft={2}>
+          {branches}
+        </Box>
+      </Box>
+    )
   })
 }
