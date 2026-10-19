@@ -1,6 +1,6 @@
 {
   "name": "turn-questions",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Frames every question Claude asked in a turn: AskUserQuestion calls and questions in its replies",
   "author": {
     "name": "grvrai"

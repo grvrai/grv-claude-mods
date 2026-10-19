@@ -14,15 +14,14 @@ const DIALOG_ROOM = 34
 const asked = atom({ plugin: 'turn-questions', key: 'asked' } as const, [])
 const isHidden = atom({ plugin: 'turn-questions', key: 'isHidden' } as const, false)
 
-// oh-my-pi insets a card's title into its top rule.
-const titleOf = ({ Box, Text }: Els, label: string, meta: string) => (
-  <Box position="absolute" top={-1} left={1}>
+// A frame's title row: the engine draws nothing laid over a border, so it heads the frame's inside.
+const titleOf = ({ Text }: Els, label: string, meta: string) => (
+  <Text>
     <Text bold color={C.accent}>
-      {' '}
-      {label}{' '}
+      {label}
     </Text>
-    <Text color={C.dim}>· {meta} </Text>
-  </Box>
+    <Text color={C.dim}> · {meta}</Text>
+  </Text>
 )
 
 const rowsOf = ({ Box, Text }: Els, list: Asked[]) =>

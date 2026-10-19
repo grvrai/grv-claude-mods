@@ -29,6 +29,7 @@ const INTENT = {
 
 const mode = atom({ plugin: 'fold-tools', key: 'mode' } as const, { gen: 0, isOpen: false })
 const rows = atom({ plugin: 'fold-tools', key: 'rows' } as const, { gen: -1, isOpen: false })
+const queued = atom({ plugin: 'fold-tools', key: 'queued' } as const, [])
 
 type Els = Pick<ElementTable, 'Box' | 'Text' | 'Code' | 'Button'>
 type Fold = Awaited<ReturnType<typeof foldOf>>
@@ -222,9 +223,9 @@ const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], secti
   )
   return (
     <Box flexDirection="column">
-      {rule([edge('╭─── '), ...head, edge(' ')], '╮')}
+      {rule([edge('╭ '), ...head, edge(' ')], '╮')}
       {sections.map(section => {
-        if ('divider' in section) return rule([edge('├─── '), fixed(els, <Text color={C.muted}>{section.divider} </Text>)], '┤')
+        if ('divider' in section) return rule([edge('├ '), fixed(els, <Text color={C.muted}>{section.divider} </Text>)], '┤')
         const height = section.rows.reduce((n, r) => n + r.height, 0)
         const rail = Array.from({ length: height }, () => '│').join('\n')
         return (
@@ -239,7 +240,7 @@ const frameOf = (els: Els, id: string, tone: Tone, head: RenderChildren[], secti
       })}
       {rule(
         [
-          edge('╰───'),
+          edge('╰'),
           ...(footer
             ? [
                 fixed(
@@ -353,13 +354,47 @@ export const register: Register = on => {
     )
   })
 
-  // The person's own prompts in a blue frame, apart from the gray of the tool cards.
+  // A prompt typed over a running turn waits in the engine's queue until a later turn picks it up.
+  on('prompt.submit', async ($, e, next) => {
+    const sent = await next(e)
+    if (e.turnId && !e.command && !e.isMeta && !('drop' in sent)) {
+      const entry = { text: e.text, turnId: e.turnId }
+      await update($, queued, list => [...list, entry].slice(-50))
+    }
+    return sent
+  })
+
+  on('turn.start', async ($, e, next) => {
+    if (!e.agentId && (await read($, queued)).length) {
+      await update($, queued, list => list.filter(q => q.turnId === e.turnId && q.text !== e.text))
+    }
+    return next(e)
+  })
+
+  // The engine hands queued prompts to the model with its next request, mid-turn included.
+  on('turn.step', async function* ($, e, next) {
+    if (!e.agentId && (await read($, queued)).length) await update($, queued, () => [])
+    return yield* next(e)
+  })
+
+  // The person's own prompts in a blue frame: a prompt icon before the text, its submission status after it.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
     if (e.props.origin.kind !== 'composer') return next(e)
     const { Box, Text } = $.ui.resolve(e)
+    const isQueued = (await read($, queued)).some(q => q.text === e.props.text)
     return (
       <Box borderStyle="round" borderColor={C.user} paddingX={1}>
-        <Text>{e.props.text}</Text>
+        <Box flexShrink={0}>
+          <Text bold color={C.user}>
+            ❯{' '}
+          </Text>
+        </Box>
+        <Box flexGrow={1} flexShrink={1}>
+          <Text>{e.props.text}</Text>
+        </Box>
+        <Box flexShrink={0}>
+          <Text color={isQueued ? C.warning : C.dim}>  {isQueued ? '◷ queued' : '✓ sent'}</Text>
+        </Box>
       </Box>
     )
   })

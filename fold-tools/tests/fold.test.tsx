@@ -49,7 +49,7 @@ test('a folded edit is its title line alone and unfolds into a framed diff', asy
   expect(text).not.toContain('│')
   await ui.press({ key: 'fold-t1' })
   text = await textOf(ui)
-  expect(text).toContain('╭─── ')
+  expect(text).toContain('╭ ')
   expect(text).toContain('-  4│old value')
   expect(text).toContain('+   │new value')
   expect((await ui.find({ key: 'more-t1' }))?.text).toContain('⟦collapse⟧')
@@ -184,7 +184,7 @@ test('cards and intents keep one blank row above them; messages keep the engine 
 
 test('every card is framed, with ⟦expand⟧ in its bottom rule; prompts get a frame of their own', async $ => {
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...bash('t10') })
-  expect(await textOf(ui)).toContain('╭─── ')
+  expect(await textOf(ui)).toContain('╭ ')
   expect((await ui.find({ key: 'more-t10' }))?.text).toContain('⟦expand⟧')
   await ui.press({ key: 'more-t10' })
   expect(await textOf(ui)).toContain('line 30')
@@ -203,4 +203,21 @@ test('every card is framed, with ⟦expand⟧ in its bottom rule; prompts get a 
   const prompt = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'UserMessage', props: { text: 'hello', origin: { kind: 'composer' }, isExpanded: false } })
   expect(await prompt.drawn()).toMatchObject({ type: 'Box', props: { borderStyle: 'round' } })
   await prompt.unmount()
+})
+
+test('a prompt typed over a running turn reads queued, then sent once a later turn picks it up', async ($, on) => {
+  on('prompt.submit', ($, e) => ({ text: e.text }))
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  const prompt = { component: 'UserMessage', props: { text: 'and then say done', origin: { kind: 'composer' }, isExpanded: false } } as const
+  await $.prompt.submit({ text: 'and then say done', turnId: 't1', wait: false, origin: { kind: 'composer' } })
+  let ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...prompt })
+  let text = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+  expect(text).toContain('❯')
+  expect(text).toContain('◷ queued')
+  await ui.unmount()
+  await $.turn.start({ text: 'and then say done', turnId: 't2' })
+  ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...prompt })
+  text = (await ui.findAll({ type: 'Text' })).map(t => t.text).join('\n')
+  expect(text).toContain('✓ sent')
+  await ui.unmount()
 })
