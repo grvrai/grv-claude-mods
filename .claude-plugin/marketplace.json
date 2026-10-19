@@ -1,0 +1,22 @@
+{
+  "name": "grv-claude-mods",
+  "owner": { "name": "grvrai" },
+  "description": "Claude Code mods that redraw tool calls, questions and a session sidebar in the style of oh-my-pi",
+  "plugins": [
+    {
+      "name": "fold-tools",
+      "source": "./fold-tools",
+      "description": "oh-my-pi style click-to-fold cards for tool calls and code changes, with a one-line intent heading"
+    },
+    {
+      "name": "turn-questions",
+      "source": "./turn-questions",
+      "description": "Frames every question Claude asked in a turn: AskUserQuestion calls and questions in its replies"
+    },
+    {
+      "name": "session-sidebar",
+      "source": "./session-sidebar",
+      "description": "A docked sidebar of this session's subagents, todos and files touched"
+    }
+  ]
+}

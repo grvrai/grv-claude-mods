@@ -1,0 +1,7 @@
+{
+  "name": "fold-tools",
+  "version": "0.1.0",
+  "description": "oh-my-pi style click-to-fold cards for tool calls and code changes",
+  "author": { "name": "grvrai" },
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "turn-questions",
+  "version": "0.1.0",
+  "description": "Frames every question Claude asked in a turn: AskUserQuestion calls and questions in its replies",
+  "author": { "name": "grvrai" },
+  "types": "./types/index.d.ts"
+}

@@ -1,0 +1,7 @@
+{
+  "name": "session-sidebar",
+  "version": "0.1.0",
+  "description": "A docked sidebar of this session's subagents, todos and files touched",
+  "author": { "name": "grvrai" },
+  "types": "./types/index.d.ts"
+}
