@@ -242,21 +242,26 @@ test('a prompt typed over a running turn reads queued, then sent once a later tu
 })
 
 test('a running card spins while the call is in flight', async ($, on) => {
+  const seenIds: string[] = []
   const clock = mock.clock(on)
   // The call stays in flight until the test lets it finish.
   let finish = () => {}
   const held = new Promise<void>(resolve => {
     finish = resolve
   })
-  on('tool.call', { tool: 'Bash' }, async () => {
+  on('tool.call', { tool: 'Bash' }, async ($, e) => {
+    seenIds.push(String(e.tool_use_id))
     await held
     return { result: { stdout: 'hi', stderr: '', interrupted: false } }
   })
   const running = { ...bash('t12'), props: { ...bash('t12').props, isRunning: true, output: undefined } }
-  const call = $.tool.call({ tool: 'Bash', command: 'sleep 1', description: 'Wait' })
+  const call = $.tool.call({ tool: 'Bash', command: 'sleep 1', description: 'Wait', tool_use_id: 't12' })
   const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...running })
   const glyph = async () => (await ui.findAll({ type: 'Text' }))[0]?.text.charAt(0)
+  await clock.settle()
+  await ui.redraw()
   const first = await glyph()
+  expect(seenIds).toEqual(['t12'])
   expect('⠴⠦⠖⠲').toContain(first ?? '?')
   await clock.advance(240)
   await clock.settle()
@@ -344,4 +349,17 @@ test('shell calls are tinted a muted blue; other tools keep the amber accent', (
   expect(shell.tint).toBe(C.blue)
   expect(shell.icon.color).toBe(C.blue)
   expect(cardOf('Read', { file_path: '/repo/a.py' }, undefined, '/repo').tint).toBe(C.accent)
+})
+
+test('a row the engine still calls running, with no call in flight, rests on ⏳ instead of spinning', async ($, on) => {
+  const clock = mock.clock(on)
+  const stuck = { ...bash('t21'), props: { ...bash('t21').props, isRunning: true, output: undefined } }
+  const ui = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', ...stuck })
+  const glyph = async () => (await ui.findAll({ type: 'Text' }))[0]?.text.charAt(0)
+  expect(await glyph()).toBe('⏳')
+  await clock.advance(480)
+  await clock.settle()
+  await ui.redraw()
+  expect(await glyph()).toBe('⏳')
+  await ui.unmount()
 })

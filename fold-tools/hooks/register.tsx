@@ -34,6 +34,8 @@ const mode = atom({ plugin: 'fold-tools', key: 'mode' } as const, { gen: 0, isOp
 const rows = atom({ plugin: 'fold-tools', key: 'rows' } as const, { gen: -1, isOpen: false })
 const queued = atom({ plugin: 'fold-tools', key: 'queued' } as const, [])
 const tick = atom({ plugin: 'fold-tools', key: 'tick' } as const, 0)
+// The tool_use ids whose tool.call is in flight; only their rows spin, and the ticker runs only while one is (or a prompt waits).
+const live = atom({ plugin: 'fold-tools', key: 'live' } as const, [])
 const stamps = atom({ plugin: 'fold-tools', key: 'stamps' } as const, 0)
 const history = atom({ plugin: 'fold-tools', key: 'history' } as const, 0)
 
@@ -47,14 +49,12 @@ type Footer = Control | undefined
 
 let cwd = ''
 let home = ''
-// Tool calls in flight; the ticker runs only while one is, or while a prompt waits.
-let active = 0
 let ticker: Timer | undefined
 // Rows stored before this load, by uuid, at the times the transcript file keeps.
 const past = new Map<string, number>()
 
 const animate = async ($: EngineInterface) => {
-  const isLive = active > 0 || (await read($, queued)).length > 0
+  const isLive = (await read($, live)).length > 0 || (await read($, queued)).length > 0
   if (isLive && !ticker) ticker = $.clock.every(FRAME_MS, () => void update($, tick, n => n + 1))
   if (!isLive && ticker) {
     ticker.cancel()
@@ -174,9 +174,9 @@ const toggleOf = (els: Els, key: string, icon: { glyph: string; color: string },
 }
 
 // oh-my-pi's header: `icon Title: target ⟦+N/-M⟧  meta · meta`; the icon's cell toggles the card.
-const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame = 0) => {
+const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame?: number) => {
   const { Box, Text } = els
-  const icon = s.isRunning ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: card.tint } : iconOf(s, card.icon)
+  const icon = s.isRunning && frame !== undefined ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: card.tint } : iconOf(s, card.icon)
   const badge = card.badge && (card.badge.add || card.badge.del) ? card.badge : undefined
   const meta = [...card.meta, ...(s.isInterrupted ? ['interrupted'] : [])]
   return [
@@ -354,14 +354,19 @@ const railOf = (els: Els, id: string, tone: Tone, sections: Section[], footer: F
 }
 
 // Only a running card reads the tick, so a finished one never redraws for it.
-const spinOf = async ($: EngineInterface, isRunning: boolean) => (isRunning ? read($, tick) : 0)
+// A running row's spinner frame while one of its calls is in flight; undefined for any other, so a call the engine still calls running after its tool.call ended (its result lost, its turn cut) rests on ⏳.
+const spinOf = async ($: EngineInterface, ids: readonly string[], isRunning: boolean) => {
+  if (!isRunning) return undefined
+  const now = await read($, live)
+  return ids.some(id => now.includes(id)) ? read($, tick) : undefined
+}
 
 // One card: a single header line, folded; unfolded, its body on a rail beneath. A row the view expands (a click on it, ctrl+o) shows its whole body, the view's own fold in place of the card's.
 const rowOf = async ($: EngineInterface, els: Els, id: string, card: Card, s: Status, hasEngineBody: boolean, isExpanded = false) => {
   const { Box } = els
   const own = await foldOf($, { requestId: id })
   const fold = isExpanded ? { ...own, isOpen: true, isFull: true } : own
-  const head = headerOf(els, id, card, s, fold, await spinOf($, s.isRunning))
+  const head = headerOf(els, id, card, s, fold, await spinOf($, [id], s.isRunning))
   const canOpen = !s.isRunning && (card.body !== undefined || hasEngineBody)
   const shown = canOpen && fold.isOpen && card.body ? shownOf(els, card.body, fold) : undefined
   return (
@@ -383,7 +388,7 @@ const branchOf = async ($: EngineInterface, els: Els, id: string, card: Card, s:
     <Box flexDirection="column">
       <Box key={`row-${id}`} height={1}>
         {fixed(els, <Text color={C.dim}>{lead}</Text>)}
-        {headerOf(els, id, card, s, fold, await spinOf($, s.isRunning))}
+        {headerOf(els, id, card, s, fold, await spinOf($, [id], s.isRunning))}
       </Box>
       {shown && <Box marginLeft={3}>{railOf(els, id, toneOf(s), shown.sections, footerOf(shown, fold))}</Box>}
     </Box>
@@ -484,17 +489,27 @@ export const register: Register = on => {
     return yield* next(e)
   })
 
-  // Counts the calls in flight, so the ticker runs while any card is animating.
+  // Marks a call in flight for its row's spinner, and unmarks it however the call ends.
   on('tool.call', async ($, e, next) => {
-    if (SKIP.has(e.tool)) return next(e)
-    active += 1
+    const id = e.tool_use_id
+    if (SKIP.has(e.tool) || !id) return next(e)
+    await update($, live, ids => [...ids, id])
     await animate($)
     try {
       return await next(e)
     } finally {
-      active -= 1
+      await update($, live, ids => ids.filter(x => x !== id))
       await animate($)
     }
+  })
+
+  // No call of the main loop outlives its turn; one whose tool.call never settled stops spinning here.
+  on('turn.complete', async ($, e, next) => {
+    if (!e.agentId && (await read($, live)).length) {
+      await update($, live, () => [])
+      await animate($)
+    }
+    return next(e)
   })
 
   // The person's own prompts in a blue frame, the prompt icon on its rail: the text, its time and submission status.
@@ -539,11 +554,11 @@ export const register: Register = on => {
       isErrored: calls.some(c => c.isErrored),
       isInterrupted: calls.some(c => c.isInterrupted),
     }
-    const frame = await spinOf($, status.isRunning)
+    const frame = await spinOf($, calls.map((c, n) => c.tool_use_id ?? `${e.requestId}-${n}`), status.isRunning)
     const cards = calls.map(c => cardOf(c.tool, c.input, c.output, cwd, home))
     // A group of one kind of call takes that kind's color, a shell run its blue.
     const tint = cards.every(c => c.tint === cards[0]?.tint) ? (cards[0]?.tint ?? C.accent) : C.accent
-    const icon = status.isRunning ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: tint } : iconOf(status, { glyph: G.bullet, color: C.success })
+    const icon = status.isRunning && frame !== undefined ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: tint } : iconOf(status, { glyph: G.bullet, color: C.success })
     const branches = fold.isOpen
       ? await Promise.all(
           calls.map((c, n) =>
