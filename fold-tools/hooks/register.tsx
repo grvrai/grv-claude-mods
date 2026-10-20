@@ -1,5 +1,5 @@
 import { atom, memberOf, read, update } from 'claude-code'
-import type { ElementTable, EngineInterface, Register, RenderChildren, Timer } from 'claude-code'
+import type { ElementTable, EngineInterface, Register, RenderChildren, RenderInput, Timer } from 'claude-code'
 
 import { cardOf, diffRows, groupSummary } from './cards'
 import type { Body, Card, DiffRow } from './cards'
@@ -15,6 +15,10 @@ const CAPS: Record<Body['kind'], number> = { diff: 40, code: 12, shell: 10, text
 const FULL = 400
 // The spinner's frame length.
 const FRAME_MS = 120
+// Another agent's message shows this many lines until ctrl+o shows all.
+const AGENT_LINES = 12
+// Origins of a message another agent sent: another session, its SendMessage, a coordinator, an observer.
+const AGENT_ORIGINS = new Set(['peer', 'peer-send-message', 'coordinator', 'observer'])
 // How much of a transcript too big for one read the backfill takes from its end.
 const TAIL_BYTES = 4_000_000
 const INTENT_LINE = /^\s*»\s+(.+?)\s*$/
@@ -190,7 +194,7 @@ const toggleOf = (els: Els, key: string, icon: { glyph: string; color: string },
 // oh-my-pi's header: `icon Title: target ⟦+N/-M⟧  meta · meta`; the icon's cell toggles the card.
 const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame?: number) => {
   const { Box, Text } = els
-  const icon = s.isRunning && frame !== undefined ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: card.tint } : iconOf(s, card.icon)
+  const icon = s.isRunning && frame !== undefined ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: C.accent } : iconOf(s, card.icon)
   const badge = card.badge && (card.badge.add || card.badge.del) ? card.badge : undefined
   const meta = [...card.meta, ...(s.isInterrupted ? ['interrupted'] : [])]
   return [
@@ -198,7 +202,7 @@ const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame
     fixed(
       els,
       <Text>
-        <Text bold color={card.tint}>
+        <Text bold color={C.accent}>
           {card.title}
         </Text>
         <Text color={C.dim}>{card.target ? ': ' : ''}</Text>
@@ -411,6 +415,28 @@ const branchOf = async ($: EngineInterface, els: Els, id: string, card: Card, s:
   )
 }
 
+// Another agent's message: a purple frame, a bot icon and the sender above the body, the body capped until ctrl+o.
+const agentOf = async ($: EngineInterface, e: RenderInput<'UserMessage'>) => {
+  const els = $.ui.resolve(e)
+  const { Box, Markdown, Text } = els
+  const lines = e.props.text.split('\n')
+  const shown = e.props.isExpanded ? lines : lines.slice(0, AGENT_LINES)
+  const more = lines.length - shown.length
+  const body = (
+    <Box flexDirection="column">
+      <Text>
+        <Text>🤖 </Text>
+        <Text bold color={C.purple}>
+          {e.props.from?.name ?? 'agent'}
+        </Text>
+      </Text>
+      <Markdown text={shown.join('\n')} />
+      {more > 0 && <Text color={C.dim}>… {more} more lines · ctrl+o shows all</Text>}
+    </Box>
+  )
+  return messageOf($, els, e, C.purple, undefined, body)
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     cwd = await $.session.cwd()
@@ -429,7 +455,7 @@ export const register: Register = on => {
   on('session.append', async ($, e, next) => {
     // A prompt typed while a turn ran is stored when delivered (door `delivery`), as a `queued_command` attachment drawn under that row's id.
     const isQueued = e.message.name === 'queued_command'
-    if (!e.agentId && (e.door === 'prompt' || e.door === 'response' || isQueued)) {
+    if (!e.agentId && (e.door === 'prompt' || e.door === 'response' || e.door === 'delivery' || isQueued)) {
       const now = await $.clock.now()
       await update($, memberOf(stamps, { requestId: e.uuid }), () => now)
     }
@@ -532,7 +558,9 @@ export const register: Register = on => {
 
   // The person's own prompts in a blue frame, the prompt icon on its rail: the text, its time and submission status.
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
-    if (e.props.origin.kind !== 'composer') return next(e)
+    const { from, origin } = e.props
+    if ((from && origin.kind !== 'channel') || AGENT_ORIGINS.has(origin.kind)) return agentOf($, e)
+    if (origin.kind !== 'composer') return next(e)
     const els = $.ui.resolve(e)
     const { Text } = els
     const isQueued = (await read($, queued)).some(q => q.text === e.props.text)
@@ -573,14 +601,11 @@ export const register: Register = on => {
       isInterrupted: calls.some(c => c.isInterrupted),
     }
     const frame = await spinOf($, calls.map((c, n) => c.tool_use_id ?? `${e.requestId}-${n}`), status.isRunning)
-    const cards = calls.map(c => cardOf(c.tool, c.input, c.output, cwd, home))
-    // A group of one kind of call takes that kind's color, a shell run its blue.
-    const tint = cards.every(c => c.tint === cards[0]?.tint) ? (cards[0]?.tint ?? C.accent) : C.accent
-    const icon = status.isRunning && frame !== undefined ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: tint } : iconOf(status, { glyph: G.bullet, color: C.success })
+    const icon = status.isRunning && frame !== undefined ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: C.accent } : iconOf(status, { glyph: G.bullet, color: C.success })
     const branches = fold.isOpen
       ? await Promise.all(
           calls.map((c, n) =>
-            branchOf($, els, c.tool_use_id ?? `${e.requestId}-${n}`, cards[n] ?? cardOf(c.tool, c.input, c.output, cwd, home), c, `${n === calls.length - 1 ? G.last : G.branch} `),
+            branchOf($, els, c.tool_use_id ?? `${e.requestId}-${n}`, cardOf(c.tool, c.input, c.output, cwd, home), c, `${n === calls.length - 1 ? G.last : G.branch} `),
           ),
         )
       : []
@@ -588,7 +613,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box key={`row-${e.requestId}`} height={1}>
           {toggleOf(els, 'fold-group', icon, fold.isOpen, fold.toggle)}
-          <Text bold color={tint}>
+          <Text bold color={C.accent}>
             {groupSummary(calls)}
           </Text>
         </Box>

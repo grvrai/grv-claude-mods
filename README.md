@@ -21,7 +21,7 @@ Five small mods that make Claude Code's terminal easier to read, in the look and
 
 | Mod | What you get |
 | --- | --- |
-| **fold-tools** | Every tool call is one tidy line; click it, or the `▸` its icon turns into when you point at it, to see the output or diff. Claude writes a short `» intent` above its calls. Your messages and Claude's are framed and timestamped, and your prompt shows `◴` while queued, `✓` once sent. |
+| **fold-tools** | Every tool call is one tidy line; click it, or the `▸` its icon turns into when you point at it, to see the output or diff. Claude writes a short `» intent` above its calls. Your messages and Claude's are framed and timestamped, and your prompt shows `◴` while queued, `✓` once sent. Messages from other agents get a purple frame with a 🤖 and the sender's name. |
 | **turn-questions** | Every question Claude asked in a turn, collected in one framed list above the prompt, so none get lost. |
 | **session-sidebar** | A sidebar with subagents, todos and changed files. It appears only when there is something to show; `/sidebar` toggles it. |
 | **agent-sidebar** | An `Agents` tab beside the sidebar listing every background agent on your machine, grouped like Claude Code's agent view (working, needs input, done), with age and folder. Click one to open the agent view; `/fleet` toggles it. |
@@ -70,7 +70,7 @@ Then `/reload-plugins` again.
 ## Good to know
 
 - Needs a recent Claude Code (built against 2.1.303). The mod API is early access, so a Claude Code update can change things.
-- One color theme across every mod, oh-my-pi's dark palette, tuned for dark terminals: amber is Claude acting (tool names, intents, buttons), blue is you (your messages, questions, the context gauge), gold your shell commands, green done, yellow waiting, red errors.
+- One color theme across every mod, oh-my-pi's dark palette, tuned for dark terminals: amber is Claude acting (tool names, intents, buttons), blue is you (your messages, questions, the context gauge), purple other agents' messages, green done, yellow waiting, red errors.
 - The repo is private: installing needs read access on GitHub and a git credential on the machine.
 
 ## Develop

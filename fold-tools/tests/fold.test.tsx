@@ -352,11 +352,27 @@ test('a row the view expands shows its whole body, without the fold control of t
   await ui.unmount()
 })
 
-test('shell calls are tinted a muted gold; other tools keep the amber accent', () => {
+test('shell calls share the amber of every other tool call', () => {
   const shell = cardOf('Bash', { command: 'ls', description: 'List' }, { stdout: 'a', stderr: '', interrupted: false }, '/repo')
-  expect(shell.tint).toBe(C.gold)
-  expect(shell.icon.color).toBe(C.gold)
-  expect(cardOf('Read', { file_path: '/repo/a.py' }, undefined, '/repo').tint).toBe(C.accent)
+  expect(shell.icon.color).toBe(C.accent)
+})
+
+test('a message from another agent is framed in purple under a bot icon and its sender, its body capped', async $ => {
+  const body = Array.from({ length: 15 }, (_, n) => `point ${n + 1}`).join('\n')
+  const ui = await $.ui.mount({
+    plugin: 'fold-tools',
+    surface: 'terminal',
+    component: 'UserMessage',
+    requestId: 'm1',
+    props: { text: body, origin: { kind: 'peer' }, from: { name: 'Django AAI Rebuild' }, isExpanded: false },
+  })
+  const texts = (await ui.findAll({ type: 'Text' })).map(t => t.text)
+  expect(texts).toEqual(expect.arrayContaining(['┏', '🤖 ', 'Django AAI Rebuild', '┛']))
+  expect(texts.join('')).toContain('… 3 more lines')
+  const md = (await ui.findAll({ type: 'Markdown' })).map(m => m.props.text)
+  expect(md[0]).toContain('point 12')
+  expect(md[0]).not.toContain('point 13')
+  await ui.unmount()
 })
 
 test('a row the engine still calls running, with no call in flight, rests on ⏳ instead of spinning', async ($, on) => {

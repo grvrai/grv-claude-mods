@@ -2,10 +2,9 @@
 export const C = {
   accent: '#febc38', // Claude acting: tool names, intents, spinners, controls
   blue: '#61afef', // you: prompts, questions, the context gauge
-  gold: '#d7af5f', // your shell: Bash calls
   success: '#89d281', // done
   warning: '#e4c00f', // waiting: queued, needs input, a filling context
-  purple: '#b281d6', // a nearly full context
+  purple: '#b281d6', // other agents' messages, a nearly full context
   error: '#e06c75', // errors, a full context
   pink: '#d787af', // the model
   soft: '#aab1bb', // tool-call text, a step under the replies' white
