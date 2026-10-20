@@ -341,7 +341,7 @@ test('a row the view expands shows its whole body, without the fold control of t
 
 test('shell calls are tinted a muted blue; other tools keep the amber accent', () => {
   const shell = cardOf('Bash', { command: 'ls', description: 'List' }, { stdout: 'a', stderr: '', interrupted: false }, '/repo')
-  expect(shell.tint).toBe(C.shell)
-  expect(shell.icon.color).toBe(C.shell)
+  expect(shell.tint).toBe(C.blue)
+  expect(shell.icon.color).toBe(C.blue)
   expect(cardOf('Read', { file_path: '/repo/a.py' }, undefined, '/repo').tint).toBe(C.accent)
 })

@@ -80,7 +80,7 @@ export const register: Register = on => {
     const rest = await next(e)
     return (
       <Box flexDirection="column">
-        <Box flexDirection="column" borderStyle="round" borderColor={C.border} paddingX={1}>
+        <Box flexDirection="column" borderStyle="round" borderColor={C.blue} paddingX={1}>
           {titleOf(els, 'Questions', String(list.length))}
           <Box>
             <Box flexDirection="column" flexGrow={1}>
@@ -102,7 +102,7 @@ export const register: Register = on => {
     const fit = (text: string) => (e.surface === 'terminal' ? clip(text, DIALOG_ROOM) : text)
     return (
       <Box flexDirection="column">
-        <Box flexDirection="column" borderStyle="round" borderColor={C.border} paddingX={1}>
+        <Box flexDirection="column" borderStyle="round" borderColor={C.blue} paddingX={1}>
           <Text>
             <Text bold color={C.accent}>
               Ask
@@ -128,7 +128,7 @@ export const register: Register = on => {
     const { Box } = els
     const pairs = pairsOf(output)
     return (
-      <Box flexDirection="column" borderStyle="round" borderColor={C.borderMuted} paddingX={1}>
+      <Box flexDirection="column" borderStyle="round" borderColor={C.dim} paddingX={1}>
         {titleOf(els, '? Ask', plural(pairs.length, 'question'))}
         {rowsOf(els, pairs)}
       </Box>

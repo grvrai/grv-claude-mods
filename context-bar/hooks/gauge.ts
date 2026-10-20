@@ -10,16 +10,17 @@ export type StatusInput = {
   rate_limits?: Record<string, { used_percentage?: number } | undefined>
 }
 
-// oh-my-pi's dark theme (tui/src/theme/dark.json) and unicode symbols (theme/symbols.ts).
+// The grv theme, the same in every mod: oh-my-pi's dark palette, one meaning per color.
 export const C = {
-  model: '#d787af',
-  context: '#8787af',
-  used: '#0088fa',
-  warning: '#e4c00f',
-  purple: '#b281d6',
+  accent: '#febc38', // Claude acting: tool names, intents, spinners, controls
+  blue: '#3aa6ff', // you and your shell: prompts, Bash, questions, the context gauge
+  success: '#89d281', // done
+  warning: '#e4c00f', // waiting: queued, needs input, a filling context
+  purple: '#b281d6', // a nearly full context
   error: '#fc3a4b',
-  dim: '#5f6673',
-  sep: '#808080',
+  pink: '#d787af', // the model
+  muted: '#777d88', // secondary text
+  dim: '#5f6673', // frames, rails, meta
 }
 export const ICON = { model: '⬢', context: '◫', fast: '⚡' }
 const SEP = ' › '
@@ -50,11 +51,11 @@ export const limitRuns = (limits: ReadonlyArray<{ kind: string; percentUsed: num
     .filter(l => LIMIT_NAMES[l.kind])
     .map(l => ({
       text: `${LIMIT_NAMES[l.kind]} ${Math.round(l.percentUsed)}%`,
-      color: l.percentUsed >= 90 ? C.error : l.percentUsed >= 70 ? C.purple : l.percentUsed >= 50 ? C.warning : C.context,
+      color: l.percentUsed >= 90 ? C.error : l.percentUsed >= 70 ? C.purple : l.percentUsed >= 50 ? C.warning : C.blue,
     }))
 
 export const levelColor = (percent: number, window: number) =>
-  LEVELS.find(([pct, tokens]) => percent > 0 && percent >= Math.min(pct, window > 0 ? (tokens / window) * 100 : pct))?.[2] ?? C.used
+  LEVELS.find(([pct, tokens]) => percent > 0 && percent >= Math.min(pct, window > 0 ? (tokens / window) * 100 : pct))?.[2] ?? C.blue
 
 export const formatTokens = (n: number) =>
   n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n)
@@ -75,14 +76,14 @@ export const partsOf = (input: StatusInput): Parts => {
   const name = input.model?.display_name || modelName(input.model?.id ?? '') || 'model'
   const level = input.effort?.level ?? ''
   const head: Run[] = [
-    { text: `${ICON.model} ${name}${input.fast_mode ? ` ${ICON.fast}` : ''}${level ? ` · ${effortLabel(level)}` : ''}`, color: C.model },
-    { text: SEP, color: C.sep },
-    { text: `${ICON.context} `, color: C.context },
+    { text: `${ICON.model} ${name}${input.fast_mode ? ` ${ICON.fast}` : ''}${level ? ` · ${effortLabel(level)}` : ''}`, color: C.pink },
+    { text: SEP, color: C.muted },
+    { text: `${ICON.context} `, color: C.blue },
   ]
   const windows = Object.entries(input.rate_limits ?? {}).flatMap(([kind, w]) =>
     w?.used_percentage === undefined ? [] : [{ kind, percentUsed: w.used_percentage }],
   )
-  const limits = limitRuns(windows).flatMap((r, n): Run[] => [{ text: n ? ' · ' : SEP, color: C.sep }, r])
+  const limits = limitRuns(windows).flatMap((r, n): Run[] => [{ text: n ? ' · ' : SEP, color: C.muted }, r])
   const window = input.context_window?.context_window_size
   if (!window) return { head, tail: limits }
   const pct = input.context_window?.used_percentage
@@ -94,11 +95,11 @@ export const partsOf = (input: StatusInput): Parts => {
       ? []
       : [
           { text: ` ${pct < 10 ? pct.toFixed(1) : Math.round(pct)}%`, color: pct > 100 ? C.error : color },
-          { text: ` ${formatTokens(Math.round(tokens ?? 0))} `, color: C.context },
+          { text: ` ${formatTokens(Math.round(tokens ?? 0))} `, color: C.blue },
         ]
   return {
     head,
     gauge: { used: Math.min(99, Math.max(1, Math.round(pct ?? 0))), color, label },
-    tail: [{ text: ` ${formatTokens(window)} `, color: C.context }, { text: '─', color: C.dim }, ...limits],
+    tail: [{ text: ` ${formatTokens(window)} `, color: C.blue }, { text: '─', color: C.dim }, ...limits],
   }
 }

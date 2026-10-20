@@ -126,7 +126,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box height={1}>
           <Box flexShrink={0}>
-            {chip('agents', AGENTS, C.context, () => runLater($, 'background', 'open the agents list'))}
+            {chip('agents', AGENTS, C.accent, () => runLater($, 'background', 'open the agents list'))}
             <Text> </Text>
           </Box>
           <Box flexShrink={1} height={1} overflow="hidden">
@@ -142,9 +142,9 @@ export const register: Register = on => {
           <Box flexShrink={0}>{runs(parts.tail)}</Box>
           <Box flexShrink={0}>
             <Text> </Text>
-            {chip('sidebar', SIDEBAR, C.context, () => runLater($, 'sidebar', 'toggle the sidebar'))}
+            {chip('sidebar', SIDEBAR, C.accent, () => runLater($, 'sidebar', 'toggle the sidebar'))}
             <Text> </Text>
-            {chip('compact', COMPACT, isIdle ? C.context : C.dim, () => (isIdle ? compact($) : undefined))}
+            {chip('compact', COMPACT, isIdle ? C.accent : C.dim, () => (isIdle ? compact($) : undefined))}
           </Box>
         </Box>
         {hint}

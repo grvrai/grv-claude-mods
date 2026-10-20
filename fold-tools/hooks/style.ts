@@ -1,14 +1,14 @@
-// oh-my-pi's dark palette (tui/src/theme/dark.json).
+// The grv theme, the same in every mod: oh-my-pi's dark palette, one meaning per color.
 export const C = {
-  accent: '#febc38',
-  success: '#89d281',
+  accent: '#febc38', // Claude acting: tool names, intents, spinners, controls
+  blue: '#3aa6ff', // you and your shell: prompts, Bash, questions, the context gauge
+  success: '#89d281', // done
+  warning: '#e4c00f', // waiting: queued, needs input, a filling context
+  purple: '#b281d6', // a nearly full context
   error: '#fc3a4b',
-  warning: '#e4c00f',
-  muted: '#777d88',
-  dim: '#5f6673',
-  user: '#178fb9',
-  // Shell calls stand apart from the amber tools in a muted blue.
-  shell: '#7a9cc6',
+  pink: '#d787af', // the model
+  muted: '#777d88', // secondary text
+  dim: '#5f6673', // frames, rails, meta
 }
 
 // A 2x2 braille spinner, its gap going round clockwise, and a clock for a prompt waiting its turn.

@@ -15,7 +15,7 @@ const textOf = (runs: { text: string }[]) => runs.map(r => r.text).join('')
 test('the bar splits into model and effort, a gauge sized by the fill, and the window and rate limits', () => {
   const parts = partsOf(INPUT)
   expect(textOf(parts.head)).toBe('⬢ Opus 5.5 · ◕ xhigh › ◫ ')
-  expect(parts.gauge).toEqual({ used: 38, color: C.purple, label: [{ text: ' 38%', color: C.purple }, { text: ' 380k ', color: C.context }] })
+  expect(parts.gauge).toEqual({ used: 38, color: C.purple, label: [{ text: ' 38%', color: C.purple }, { text: ' 380k ', color: C.blue }] })
   expect(textOf(parts.tail)).toBe(' 1M ─ › 5h 55% · 7d 20%')
 })
 
@@ -29,7 +29,7 @@ test('fast mode, a missing window and a missing effort read sensibly', () => {
 })
 
 test('gauge, levels, limits and names follow oh-my-pi', () => {
-  expect(levelColor(10, 200_000)).toBe(C.used)
+  expect(levelColor(10, 200_000)).toBe(C.blue)
   expect(levelColor(55, 200_000)).toBe(C.warning)
   expect(levelColor(16, 1_000_000)).toBe(C.warning)
   expect(levelColor(75, 200_000)).toBe(C.purple)

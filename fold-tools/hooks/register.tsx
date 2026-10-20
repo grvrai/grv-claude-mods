@@ -505,7 +505,7 @@ export const register: Register = on => {
     const isQueued = (await read($, queued)).some(q => q.text === e.props.text)
     const frame = isQueued ? await read($, tick) : 0
     const status = <Text color={isQueued ? C.warning : C.success}>  {isQueued ? CLOCK[frame % CLOCK.length] : '✓'}</Text>
-    return messageOf($, els, e, C.user, { glyph: '❯', color: C.user }, <Text>{e.props.text}</Text>, status)
+    return messageOf($, els, e, C.blue, { glyph: '❯', color: C.blue }, <Text>{e.props.text}</Text>, status)
   })
 
   on('ui.render', { component: 'ToolUse' }, async ($, e, next) => {
