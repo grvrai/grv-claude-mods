@@ -2,7 +2,7 @@ import type { PromptComposeInput } from 'claude-code'
 import { expect, mock, test } from 'claude-code/testing'
 
 import { cardOf, diffRows, groupSummary } from '../hooks/cards'
-import { timeOf } from '../hooks/style'
+import { C, timeOf } from '../hooks/style'
 
 const PATCH = [{ oldStart: 3, oldLines: 2, newStart: 3, newLines: 3, lines: [' keep', '-old value', '+new value', '+more'] }]
 const RUN = { origin: { kind: 'composer' }, presentation: { isFullscreen: true, columns: 100 } } as const
@@ -337,4 +337,11 @@ test('a row the view expands shows its whole body, without the fold control of t
   expect(text).toContain('line 30')
   expect(await ui.find({ key: 'more-t20' })).toBeUndefined()
   await ui.unmount()
+})
+
+test('shell calls are tinted a muted blue; other tools keep the amber accent', () => {
+  const shell = cardOf('Bash', { command: 'ls', description: 'List' }, { stdout: 'a', stderr: '', interrupted: false }, '/repo')
+  expect(shell.tint).toBe(C.shell)
+  expect(shell.icon.color).toBe(C.shell)
+  expect(cardOf('Read', { file_path: '/repo/a.py' }, undefined, '/repo').tint).toBe(C.accent)
 })

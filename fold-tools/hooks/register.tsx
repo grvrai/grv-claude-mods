@@ -176,7 +176,7 @@ const toggleOf = (els: Els, key: string, icon: { glyph: string; color: string },
 // oh-my-pi's header: `icon Title: target ⟦+N/-M⟧  meta · meta`; the icon's cell toggles the card.
 const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame = 0) => {
   const { Box, Text } = els
-  const icon = s.isRunning ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: C.accent } : iconOf(s, card.icon)
+  const icon = s.isRunning ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: card.tint } : iconOf(s, card.icon)
   const badge = card.badge && (card.badge.add || card.badge.del) ? card.badge : undefined
   const meta = [...card.meta, ...(s.isInterrupted ? ['interrupted'] : [])]
   return [
@@ -184,7 +184,7 @@ const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame
     fixed(
       els,
       <Text>
-        <Text bold color={C.accent}>
+        <Text bold color={card.tint}>
           {card.title}
         </Text>
         <Text color={C.dim}>{card.target ? ': ' : ''}</Text>
@@ -540,11 +540,14 @@ export const register: Register = on => {
       isInterrupted: calls.some(c => c.isInterrupted),
     }
     const frame = await spinOf($, status.isRunning)
-    const icon = status.isRunning ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: C.accent } : iconOf(status, { glyph: G.bullet, color: C.success })
+    const cards = calls.map(c => cardOf(c.tool, c.input, c.output, cwd, home))
+    // A group of one kind of call takes that kind's color, a shell run its blue.
+    const tint = cards.every(c => c.tint === cards[0]?.tint) ? (cards[0]?.tint ?? C.accent) : C.accent
+    const icon = status.isRunning ? { glyph: SPINNER[frame % SPINNER.length] ?? G.pending, color: tint } : iconOf(status, { glyph: G.bullet, color: C.success })
     const branches = fold.isOpen
       ? await Promise.all(
           calls.map((c, n) =>
-            branchOf($, els, c.tool_use_id ?? `${e.requestId}-${n}`, cardOf(c.tool, c.input, c.output, cwd, home), c, `${n === calls.length - 1 ? G.last : G.branch} `),
+            branchOf($, els, c.tool_use_id ?? `${e.requestId}-${n}`, cards[n] ?? cardOf(c.tool, c.input, c.output, cwd, home), c, `${n === calls.length - 1 ? G.last : G.branch} `),
           ),
         )
       : []
@@ -552,7 +555,7 @@ export const register: Register = on => {
       <Box flexDirection="column">
         <Box key={`row-${e.requestId}`} height={1}>
           {toggleOf(els, 'fold-group', icon, fold.isOpen, fold.toggle)}
-          <Text bold color={C.accent}>
+          <Text bold color={tint}>
             {groupSummary(calls)}
           </Text>
         </Box>

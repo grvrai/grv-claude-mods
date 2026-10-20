@@ -7,6 +7,8 @@ export const C = {
   muted: '#777d88',
   dim: '#5f6673',
   user: '#178fb9',
+  // Shell calls stand apart from the amber tools in a muted blue.
+  shell: '#7a9cc6',
 }
 
 // A 2x2 braille spinner, its gap going round clockwise, and a clock for a prompt waiting its turn.
