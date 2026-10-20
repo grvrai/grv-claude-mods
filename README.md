@@ -70,7 +70,7 @@ Then `/reload-plugins` again.
 ## Good to know
 
 - Needs a recent Claude Code (built against 2.1.303). The mod API is early access, so a Claude Code update can change things.
-- One color theme across every mod, oh-my-pi's dark palette, tuned for dark terminals: amber is Claude acting (tool names, intents, buttons), blue is you and your shell (your messages, Bash, the context gauge), green done, yellow waiting, red errors.
+- One color theme across every mod, oh-my-pi's dark palette, tuned for dark terminals: amber is Claude acting (tool names, intents, buttons), blue is you (your messages, questions, the context gauge), gold your shell commands, green done, yellow waiting, red errors.
 - The repo is private: installing needs read access on GitHub and a git credential on the machine.
 
 ## Develop

@@ -1,6 +1,6 @@
 {
   "name": "agent-sidebar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A docked Agents tab listing every background agent on this machine by state, like Claude Code's agent view",
   "author": {
     "name": "grvrai"

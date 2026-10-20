@@ -32,7 +32,7 @@ const VERBS: Record<string, [string, string]> = {
   Bash: ['ran', 'command'],
 }
 const ICONS: Record<string, { glyph: string; color: string }> = {
-  Bash: { glyph: '❯', color: C.blue },
+  Bash: { glyph: '❯', color: C.gold },
   Edit: { glyph: '✎', color: C.accent },
   Write: { glyph: '✎', color: C.accent },
   Read: { glyph: '●', color: C.muted },
@@ -121,7 +121,7 @@ export const cardOf = (tool: string, input: unknown, output: unknown, cwd: strin
   const scope = rel(i.path) && rel(i.path) !== '.' ? ` in ${rel(i.path)}` : ''
   const hunks = (Array.isArray(o.structuredPatch) ? o.structuredPatch : []) as Hunk[]
   const icon = ICONS[tool] ?? DONE
-  const tint = tool === 'Bash' ? C.blue : C.accent
+  const tint = tool === 'Bash' ? C.gold : C.accent
   const card = ((): Omit<Card, 'tint'> => {
     switch (tool) {
       case 'Edit':
