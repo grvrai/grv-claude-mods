@@ -62,10 +62,23 @@ const animate = async ($: EngineInterface) => {
   }
 }
 
+// The transcript file: under the folder named for the session's directory, else under whichever project folder holds it (a session moved into a worktree keeps the one it started in).
+const transcriptOf = async ($: EngineInterface) => {
+  const projects = `${(await $.env.get('CLAUDE_CONFIG_DIR')) || `${home}/.claude`}/projects`
+  const file = `${await $.session.id()}.jsonl`
+  const own = `${projects}/${cwd.replace(/[^a-zA-Z0-9]/g, '-')}/${file}`
+  if (await $.fs.exists(own).catch(() => false)) return own
+  for (const entry of await $.fs.list(projects).catch(() => [])) {
+    const path = `${projects}/${entry.name}/${file}`
+    if (entry.kind === 'dir' && (await $.fs.exists(path).catch(() => false))) return path
+  }
+  return undefined
+}
+
 // Reads the transcript file's row times into `past`, its tail when the file is too big for one read.
 const backfill = async ($: EngineInterface) => {
-  const dir = (await $.env.get('CLAUDE_CONFIG_DIR')) || `${home}/.claude`
-  const path = `${dir}/projects/${cwd.replace(/[^a-zA-Z0-9]/g, '-')}/${await $.session.id()}.jsonl`
+  const path = await transcriptOf($)
+  if (!path) return
   const text = await $.fs
     .read(path)
     .catch(async () => (await $.process.run(['tail', '-c', String(TAIL_BYTES), path])).stdout)
@@ -74,7 +87,8 @@ const backfill = async ($: EngineInterface) => {
     if (!line.includes('"timestamp"')) continue
     try {
       const row = JSON.parse(line) as { type?: string; uuid?: string; timestamp?: string }
-      if ((row.type === 'user' || row.type === 'assistant') && row.uuid && row.timestamp) past.set(row.uuid, Date.parse(row.timestamp))
+      // Attachment rows hold the prompts typed while a turn ran (`queued_command`).
+      if ((row.type === 'user' || row.type === 'assistant' || row.type === 'attachment') && row.uuid && row.timestamp) past.set(row.uuid, Date.parse(row.timestamp))
     } catch {}
   }
   await update($, history, n => n + 1)
@@ -193,7 +207,9 @@ const headerOf = (els: Els, id: string, card: Card, s: Status, fold: Fold, frame
     ...(card.target
       ? [
           <Box flexShrink={1} height={1} overflow="hidden">
-            <Text wrap={card.isPath ? 'truncate-start' : 'truncate-end'}>{card.target}</Text>
+            <Text color={C.soft} wrap={card.isPath ? 'truncate-start' : 'truncate-end'}>
+              {card.target}
+            </Text>
           </Box>,
         ]
       : []),
@@ -411,7 +427,9 @@ export const register: Register = on => {
 
   // Stamps each prompt and reply row as it is stored, under the id its transcript row is drawn by.
   on('session.append', async ($, e, next) => {
-    if (!e.agentId && (e.door === 'prompt' || e.door === 'response')) {
+    // A prompt typed while a turn ran is stored when delivered (door `delivery`), as a `queued_command` attachment drawn under that row's id.
+    const isQueued = e.message.name === 'queued_command'
+    if (!e.agentId && (e.door === 'prompt' || e.door === 'response' || isQueued)) {
       const now = await $.clock.now()
       await update($, memberOf(stamps, { requestId: e.uuid }), () => now)
     }

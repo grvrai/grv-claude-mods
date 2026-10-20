@@ -278,7 +278,8 @@ test('prompts and replies show the time their row was stored, read back from the
   const rows = [
     { type: 'user', uuid: 'u1', timestamp: '2026-10-20T08:30:00.000Z' },
     { type: 'assistant', uuid: 'a1', timestamp: '2026-10-20T08:31:00.000Z' },
-    { type: 'attachment', uuid: 'x1', timestamp: '2026-10-20T08:32:00.000Z' },
+    { type: 'attachment', uuid: 'q1', timestamp: '2026-10-20T08:32:00.000Z', attachment: { type: 'queued_command' } },
+    { type: 'system', uuid: 'x1', timestamp: '2026-10-20T08:33:00.000Z' },
   ]
   const paths: string[] = []
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -286,6 +287,7 @@ test('prompts and replies show the time their row was stored, read back from the
   on('session.id', () => ({ value: 's1' }))
   on('env.get', ($, e) => ({ value: e.name === 'HOME' ? '/home/me' : undefined }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
+  on('fs.exists', ($, e) => ({ value: e.path === '/home/me/.claude/projects/-repo-my-app/s1.jsonl' }))
   on('fs.read', ($, e) => {
     paths.push(e.path)
     return { value: rows.map(r => JSON.stringify(r)).join('\n') }
@@ -305,13 +307,16 @@ test('prompts and replies show the time their row was stored, read back from the
   const reply = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', requestId: 'a1', props: { text: 'Done.', isFirstOfReply: true } })
   expect((await reply.findAll({ type: 'Text' })).map(t => t.text).join('')).toContain(timeOf(Date.parse('2026-10-20T08:31:00.000Z'), now))
   await reply.unmount()
+  const queuedPrompt = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'UserMessage', requestId: 'q1', props: { text: 'and also', origin: { kind: 'composer' }, isExpanded: false } })
+  expect((await queuedPrompt.findAll({ type: 'Text' })).map(t => t.text).join('')).toContain(timeOf(Date.parse('2026-10-20T08:32:00.000Z'), now))
+  await queuedPrompt.unmount()
   const fresh = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'AssistantMessage', requestId: 'a9', props: { text: 'Later.', isFirstOfReply: true } })
   expect((await fresh.findAll({ type: 'Text' })).map(t => t.text).join('')).not.toMatch(/\d:\d\d/)
   await fresh.unmount()
   expect(timeOf(Date.parse('2026-10-18T08:30:00Z'), now)).toMatch(/^Oct 1[78] /)
 })
 
-test('a transcript too big for one read is backfilled from its tail', async ($, on) => {
+test('a transcript too big for one read is backfilled from its tail, found in another project folder', async ($, on) => {
   const clock = mock.clock(on, { now: Date.parse('2026-10-20T09:00:00Z') })
   const ran: (readonly string[])[] = []
   on('session.start', ($, e) => ({ cwd: e.cwd }))
@@ -319,6 +324,9 @@ test('a transcript too big for one read is backfilled from its tail', async ($, 
   on('session.id', () => ({ value: 's2' }))
   on('env.get', ($, e) => ({ value: e.name === 'CLAUDE_CONFIG_DIR' ? '/cfg' : undefined }))
   on('command.register', ($, e) => ({ value: { command: e.name } }))
+  // The session moved into a worktree: its transcript is in the folder it started in, found by scanning.
+  on('fs.exists', ($, e) => ({ value: e.path === '/cfg/projects/-start/s2.jsonl' }))
+  on('fs.list', () => ({ value: [{ name: '-repo', kind: 'dir' as const, size: 0, mtimeMs: 0, isLink: false }, { name: '-start', kind: 'dir' as const, size: 0, mtimeMs: 0, isLink: false }] }))
   on('fs.read', () => {
     throw new Error('over 4 MiB')
   })
@@ -328,7 +336,7 @@ test('a transcript too big for one read is backfilled from its tail', async ($, 
   })
   await $.session.start({ cwd: '/repo', surface: 'terminal', isInteractive: true })
   await clock.settle()
-  expect(ran).toEqual([['tail', '-c', '4000000', '/cfg/projects/-repo/s2.jsonl']])
+  expect(ran).toEqual([['tail', '-c', '4000000', '/cfg/projects/-start/s2.jsonl']])
   const prompt = await $.ui.mount({ plugin: 'fold-tools', surface: 'terminal', component: 'UserMessage', requestId: 'u2', props: { text: 'hi', origin: { kind: 'composer' }, isExpanded: false } })
   expect((await prompt.findAll({ type: 'Text' })).map(t => t.text).join('')).toContain(timeOf(Date.parse('2026-10-20T08:45:00.000Z'), Date.parse('2026-10-20T09:00:00Z')))
   await prompt.unmount()

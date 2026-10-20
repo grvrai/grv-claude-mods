@@ -20,6 +20,7 @@ export const C = {
   purple: '#b281d6', // a nearly full context
   error: '#e06c75', // errors, a full context
   pink: '#d787af', // the model
+  soft: '#aab1bb', // tool-call text, a step under the replies' white
   muted: '#777d88', // secondary text
   dim: '#5f6673', // frames, rails, meta
 }
