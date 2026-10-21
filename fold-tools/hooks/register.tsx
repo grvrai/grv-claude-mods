@@ -104,42 +104,27 @@ const stampOf = async ($: EngineInterface, e: { requestId: string }) => {
   return own || past.get(e.requestId) || 0
 }
 
-// A heavy rule across the frame's width, between two corners.
-const ruleOf = (els: Els, left: string, right: string, color: string) => {
-  const { Box, Text } = els
-  return (
-    <Box height={1}>
-      {fixed(els, <Text color={color}>{left}</Text>)}
-      <Box flexGrow={1} width={0} height={1} overflow="hidden">
-        <Text color={color}>{'━'.repeat(FULL)}</Text>
-      </Box>
-      {fixed(els, <Text color={color}>{right}</Text>)}
-    </Box>
-  )
-}
+// The site row of a frame's first line: its margin, then the top border.
+const MARK_ROW = GAP + 1
 
-// A message in a heavy frame drawn by hand, so its mark sits on the left rail at the first line; its time ends that line, then anything `aside`.
-const messageOf = async ($: EngineInterface, els: Els, e: { requestId: string }, color: string, mark: { glyph: string; color?: string } | undefined, body: RenderChildren, aside?: RenderChildren) => {
+// A message in Claude Code's heavy border, which always fits its body; the mark laid over the border cell of the first line, only while that line is on screen (an overlay of a frame cut off at the top would land on the first row shown). The time ends the first line, then anything `aside`.
+const messageOf = async (
+  $: EngineInterface,
+  els: Els,
+  e: { requestId: string; props: { onScreen?: { first: number } | null } },
+  color: string,
+  mark: { glyph: string; color?: string } | undefined,
+  body: RenderChildren,
+  aside?: RenderChildren,
+) => {
   const { Box, Text } = els
   const stamp = await stampOf($, e)
   const time = stamp ? timeOf(stamp, await $.clock.now()) : ''
-  // The rails stand outside the flow, stretched to the body's height and cut there; the mark keeps its row as the rail is cut.
-  const rail = Array.from({ length: FULL }, () => '┃').join('\n')
+  const onScreen = e.props.onScreen
+  const isMarkShown = mark && (!onScreen || onScreen.first <= MARK_ROW)
   return (
     <Box flexDirection="column" marginTop={GAP}>
-      {ruleOf(els, '┏', '┓', color)}
-      <Box paddingLeft={2} paddingRight={2}>
-        <Box position="absolute" top={0} bottom={0} left={0} width={1} flexDirection="column" overflow="hidden">
-          {mark
-            ? fixed(
-                els,
-                <Text bold color={mark.color}>
-                  {mark.glyph}
-                </Text>,
-              )
-            : undefined}
-          <Text color={color}>{rail}</Text>
-        </Box>
+      <Box borderStyle="bold" borderColor={color} paddingX={1}>
         <Box flexDirection="column" flexGrow={1} flexShrink={1} width={0}>
           {body}
         </Box>
@@ -147,11 +132,14 @@ const messageOf = async ($: EngineInterface, els: Els, e: { requestId: string },
           {time && <Text color={C.dim}>  {time}</Text>}
           {aside}
         </Box>
-        <Box position="absolute" top={0} bottom={0} right={0} width={1} overflow="hidden">
-          <Text color={color}>{rail}</Text>
-        </Box>
       </Box>
-      {ruleOf(els, '┗', '┛', color)}
+      {isMarkShown && (
+        <Box position="absolute" top={1} left={0}>
+          <Text bold color={mark.color}>
+            {mark.glyph}
+          </Text>
+        </Box>
+      )}
     </Box>
   )
 }
