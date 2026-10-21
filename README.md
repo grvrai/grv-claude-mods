@@ -45,8 +45,7 @@ Install the Claude Code mods from https://github.com/grvrai/grv-claude-mods for 
    claude plugin install context-bar@grv-claude-mods
 3. Clicking cards needs the fullscreen terminal UI. Check ~/.claude/settings.json for "tui": "fullscreen" and, if it is missing, ask me before adding it.
 4. context-bar shows context and rate limits under the prompt. If I already have a "statusLine" in my settings, ask me whether to keep it.
-5. If the repo cannot be read (it is private), tell me to get access and run `gh auth login`, then `gh auth setup-git`.
-6. When done, tell me to run /reload-plugins in any open session.
+5. When done, tell me to run /reload-plugins in any open session.
 ```
 
 Or by hand, in a shell:
@@ -69,9 +68,8 @@ Then `/reload-plugins` again.
 
 ## Good to know
 
-- Needs a recent Claude Code (built against 2.1.303). The mod API is early access, so a Claude Code update can change things.
+- Needs a recent Claude Code (built against 2.1.304). The mod API is early access, so a Claude Code update can change things.
 - One color theme across every mod, oh-my-pi's dark palette, tuned for dark terminals: amber is Claude acting (tool names, intents, buttons), blue is you (your messages, questions, the context gauge), purple other agents' messages, green done, yellow waiting, red errors.
-- The repo is private: installing needs read access on GitHub and a git credential on the machine.
 
 ## Develop
 
